@@ -1,0 +1,46 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+nbproject/
+build/
+
+# Eclipse / STS — đặt ở root vì booking-service và payment-service không có .gitignore riêng
+.classpath
+.project
+.factorypath
+.settings/
+.springBeans
+.sts4-cache
+.apt_generated
+
+# HELP.md do Spring Boot sinh ra
+HELP.md
+
+.DS_Store
+*.log
+
+# File backup / swap của editor
+*.bak
+*.orig
+*.swp
+*~
+
+# Coverage report
+jacoco.exec
+jacoco.xml
+# Docker
+.env
+
+# Ghi chú ghi nháp chứa bí mật (nội dung tài liệu chính thức như API.md, README.md
+# thì VẪN được commit — dòng '*.md' đã bị gỡ vì nó nuốt luôn tài liệu dự án).
+*notes*.md
+*secrets*.md
+*credential*.md
+*ethenemail*.md
+.env.*
+!.env.example

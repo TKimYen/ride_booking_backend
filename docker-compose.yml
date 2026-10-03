@@ -1,0 +1,366 @@
+# Toàn bộ môi trường dev chạy bằng Docker: 3 database PostgreSQL tách riêng
+# (auth_db cho auth-service, user_db cho user-service, booking_db cho
+# booking-service) + discovery + gateway + auth/user/booking/payment = 6 service.
+#
+#   docker compose up -d --build
+#   docker compose ps
+#   docker compose logs -f auth-service
+#   docker compose down          # giữ dữ liệu
+#   docker compose down -v       # xoá luôn volume database
+#
+# Lưu ý: 2 database này CỐ TÌNH không dùng chung bảng. auth-service không đọc
+# hồ sơ và user-service không đọc mật khẩu, chúng giao tiếp qua HTTP nội bộ.
+
+name: ride-booking
+
+x-common-env: &common-env
+  EUREKA_URL: http://discovery-server:8761/eureka
+  # Cả hai service phải dùng cùng secret để user-service đọc được token của auth-service
+  JWT_SECRET: ${JWT_SECRET:-ride-booking-microservices-dev-secret-key-change-me-0123456789}
+  # Khoá gọi API nội bộ giữa các service
+  INTERNAL_API_KEY: ${INTERNAL_API_KEY:-ride-booking-internal-dev-key}
+  # Danh sách origin được phép gọi API (phân cách bằng dấu phẩy, không dùng *)
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+  # Link gửi trong email (verify / reset password / đổi email) — frontend.
+  # Production đổi thành domain thật.
+  APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:5173}
+
+services:
+
+  # ---------------------------------------------------------------- databases
+  auth-db:
+    image: postgres:17-alpine
+    container_name: ride-booking-auth-db
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      # Map sang cổng khác 5432 để không đụng PostgreSQL cài trên máy
+      - "127.0.0.1:${AUTH_DB_PORT:-5433}:5432"
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d auth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ------------------------------------------------------- mail catcher (dev)
+  # Nhận mọi email auth-service gửi ra, không gửi đi đâu cả. Xem hộp thư:
+  #   http://localhost:8025
+  # Đổi sang nhà cung cấp thật (Gmail/SES/Brevo) chỉ cần đặt MAIL_HOST...
+  # trong .env — code không đổi.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: ride-booking-mailpit
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - "127.0.0.1:8025:8025"   # giao diện web xem mail, chỉ localhost
+      - "127.0.0.1:1025:1025"   # SMTP của mailpit — mở ra LAN là relay mail trần   # cổng SMTP
+    restart: unless-stopped
+
+  user-db:
+    image: postgres:17-alpine
+    container_name: ride-booking-user-db
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "127.0.0.1:${USER_DB_PORT:-5434}:5432"
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d user_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ----------------------------------------------- booking_db (catalog + đặt vé)
+  # CỐ Ý dùng chung MỘT database cho cả catalog lẫn booking: thuật toán giữ ghế
+  # 10 phút cần khoá dòng trip_seats rồi ghi bookings trong cùng một transaction.
+  # Tách thành 2 database sẽ mất transaction và phải tự viết distributed lock.
+  # Schema: database/03_booking_db.sql
+  booking-db:
+    image: postgres:17-alpine
+    container_name: ride-booking-booking-db
+    environment:
+      POSTGRES_DB: booking_db
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "127.0.0.1:${BOOKING_DB_PORT:-5435}:5432"
+    volumes:
+      - booking-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d booking_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- services
+  discovery-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: discovery-server
+    container_name: ride-booking-discovery
+    environment:
+      SERVER_PORT: 8761
+    ports:
+      - "127.0.0.1:8761:8761"   # Eureka — không bao giờ expose ra ngoài
+    healthcheck:
+      # Eureka không có actuator mặc định, kiểm tra bằng cách gọi registry
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8761/eureka/apps || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: auth-service
+    container_name: ride-booking-auth
+    environment:
+      <<: *common-env
+      SERVER_PORT: 8081
+      DB_HOST: auth-db
+      DB_PORT: 5432
+      DB_NAME: auth_db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      USER_SERVICE_URL: http://user-service:8082
+      # Tài khoản admin tạo sẵn khi container auth-service khởi động.
+      # Không có biến này thì database rỗng sẽ không tạo được admin đầu tiên.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ridebooking.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@12345}
+      ADMIN_NAME: ${ADMIN_NAME:-Quản trị viên}
+      # Hạn token: access 15 phút, refresh 7 ngày
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      JWT_REFRESH_TOKEN_DAYS: ${JWT_REFRESH_TOKEN_DAYS:-7}
+      # Chống brute-force: khoá theo CẶP (email + IP), không khoá cả tài khoản
+      LOGIN_MAX_FAILED_ATTEMPTS: ${LOGIN_MAX_FAILED_ATTEMPTS:-5}
+      LOGIN_LOCK_MINUTES: ${LOGIN_LOCK_MINUTES:-15}
+      LOGIN_MAX_FAILED_ATTEMPTS_PER_IP: ${LOGIN_MAX_FAILED_ATTEMPTS_PER_IP:-20}
+      LOGIN_IP_WINDOW_MINUTES: ${LOGIN_IP_WINDOW_MINUTES:-15}
+      # Cho phép tắt gỡ khoá tài khoản. Trước đây biến này khai trong
+      # .env.example nhưng KHÔNG được truyền vào container, nên đặt false cũng
+      # không có tác dụng — đúng loại "cấu hình chết".
+      LOGIN_ADMIN_UNLOCK_ENABLED: ${LOGIN_ADMIN_UNLOCK_ENABLED:-true}
+
+      # ---- IP thật sau proxy ----
+      # Chỉ tin IP của gateway. Để trống/không khớp thì mọi request bị ghi cùng
+      # một IP và giới hạn theo IP biến thành giới hạn toàn cục.
+      # GATEWAY_IP chỉ dùng để tự kiểm tra khớp lúc khởi động, xem
+      # TrustedProxySanityCheck; đổi GATEWAY_IP thì phải đổi cả biến này.
+      GATEWAY_IP: ${GATEWAY_IP:-172.28.0.10}
+      AUTH_TRUSTED_PROXY_IPS: '${AUTH_TRUSTED_PROXY_IPS:-172\.28\.0\.10}'
+
+      # ---- Gửi email ----
+      # Mặc định trỏ vào mailpit trong compose. Muốn gửi thật thì đặt trong .env:
+      #   MAIL_HOST=smtp.gmail.com  MAIL_PORT=587
+      #   MAIL_USERNAME=<tài khoản>  MAIL_PASSWORD=<app password>
+      #   MAIL_STARTTLS=true
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-false}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@ridebooking.local}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Ride Booking}
+      # Địa chỉ này nhận cảnh báo bảo mật (đổi email, phát hiện đăng nhập lạ)
+      MAIL_SECURITY_TO: ${MAIL_SECURITY_TO:-}
+      EMAIL_VERIFY_REQUIRED_FOR_LOGIN: ${EMAIL_VERIFY_REQUIRED_FOR_LOGIN:-false}
+      EMAIL_VERIFY_TTL_MINUTES: ${EMAIL_VERIFY_TTL_MINUTES:-1440}
+      PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
+      EMAIL_CHANGE_TTL_MINUTES: ${EMAIL_CHANGE_TTL_MINUTES:-60}
+      # Trong compose MỌI request đều đi qua gateway từ cùng một IP, nên giới hạn
+      # theo IP mặc định sẽ chặn cả nhóm người dùng local. Nâng cao cho môi
+      # trường dev; production nên để mặc định (30) hoặc thấp hơn.
+      EMAIL_MAX_PER_IP: ${EMAIL_MAX_PER_IP:-200}
+      EMAIL_MAX_PER_EMAIL: ${EMAIL_MAX_PER_EMAIL:-3}
+      EMAIL_RESEND_WINDOW_MINUTES: ${EMAIL_RESEND_WINDOW_MINUTES:-60}
+      EMAIL_HISTORY_RETENTION_DAYS: ${EMAIL_HISTORY_RETENTION_DAYS:-7}
+    depends_on:
+      discovery-server:
+        condition: service_started
+      auth-db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8081:8081"   # chỉ localhost — production chỉ nên vào qua gateway
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------ services
+  user-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: user-service
+    container_name: ride-booking-user
+    environment:
+      <<: *common-env
+      SERVER_PORT: 8082
+      DB_HOST: user-db
+      DB_PORT: 5432
+      DB_NAME: user_db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+    depends_on:
+      discovery-server:
+        condition: service_started
+      user-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8082:8082"   # chỉ localhost — user-service là API nội bộ
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8082/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------ services
+  booking-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: booking-service
+    container_name: ride-booking-booking
+    environment:
+      <<: *common-env
+      SERVER_PORT: 8083
+      DB_HOST: booking-db
+      DB_PORT: 5432
+      DB_NAME: booking_db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+      # Hiển thị tên/email người đặt vé (booking_db không join được auth_db).
+      USER_SERVICE_URL: http://user-service:8082
+      # Thời gian giữ ghế, dùng cho cả đồng hồ đếm ngược 10 phút ở Trang Chọn
+      # chỗ và cho job trả ghế về AVAILABLE.
+      SEAT_HOLD_MINUTES: ${SEAT_HOLD_MINUTES:-10}
+    depends_on:
+      discovery-server:
+        condition: service_started
+      booking-db:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8083:8083"   # chỉ localhost — production chỉ nên vào qua gateway
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8083/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- payment
+  # Không có database riêng: bảng payments nằm trong booking_db và chỉ được ghi
+  # qua API nội bộ của booking-service (INTERNAL_API_KEY + /api/internal/**).
+  # Cần khoá Stripe thật để chạy: đặt STRIPE_SECRET_KEY và STRIPE_WEBHOOK_SECRET
+  # trong .env. Thiếu khoá thì service vẫn lên nhưng API thanh toán trả 502.
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: payment-service
+    container_name: ride-booking-payment
+    environment:
+      <<: *common-env
+      SERVER_PORT: 8084
+      BOOKING_SERVICE_URI: http://booking-service:8083
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_CURRENCY: ${STRIPE_CURRENCY:-vnd}
+      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:-http://localhost:3000/my-bookings}
+      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:-http://localhost:3000/booking/cancel}
+    depends_on:
+      discovery-server:
+        condition: service_started
+      booking-service:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8084:8084"   # chỉ localhost — production chỉ nên vào qua gateway
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8084/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: api-gateway
+    container_name: ride-booking-gateway
+    networks:
+      default:
+        # IP TINH bat buoc. auth-service phai tin dung dia chi nay moi chap
+        # X-Forwarded-For; neu IP gateway doi sau moi lan docker compose up,
+        # Tomcat se bo qua header va moi request lai ra mot IP chung.
+        ipv4_address: ${GATEWAY_IP:-172.28.0.10}
+    environment:
+      EUREKA_URL: http://discovery-server:8761/eureka
+      SERVER_PORT: 8080
+      # Trong Docker network phải dùng tên service, không dùng localhost
+      AUTH_SERVICE_URI: http://auth-service:8081
+      USER_SERVICE_URI: http://user-service:8082
+      BOOKING_SERVICE_URI: http://booking-service:8083
+      PAYMENT_SERVICE_URI: http://payment-service:8084
+      # CORS do gateway chặn. Dùng chung biến với auth/user-service để chỉ
+      # khai báo danh sách domain một lần. KHÔNG dùng "*".
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      # TCP peer tin cậy. KHÔNG khớp thì gateway xoá X-Forwarded-For và KHÔNG ghi
+      # IP thật, khiến mọi người dùng chung một IP. Production sau nginx/ALB thì
+      # đổi sang dải IP của proxy đó.
+      GATEWAY_TRUSTED_PROXIES: '${GATEWAY_TRUSTED_PROXIES:-(192\.168\.65\.1|172\.28\.0\.1|127\.0\.0\.1)}'
+    depends_on:
+      discovery-server:
+        condition: service_started
+    ports:
+      - "8088:8080"
+    restart: unless-stopped
+
+volumes:
+  auth-db-data:
+  user-db-data:
+  booking-db-data:
+
+networks:
+  default:
+    driver: bridge   # driver BRIDGE cua Docker, khong phai driver-service
+    ipam:
+      config:
+        # Subnet gan tinh: subnet Docker mac dinh co thay doi giua may, lam
+        # regex proxy-tin-cay trong auth-service khong con dung.
+        - subnet: ${DOCKER_SUBNET:-172.28.0.0/24}

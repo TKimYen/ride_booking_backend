@@ -1,0 +1,174 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # ---- X-Forwarded-For ----
+          # Bắt buộc: không có phần này thì gateway KHÔNG gửi X-Forwarded-For, và mọi
+          # request đi qua gateway đều bị auth-service ghi nhận cùng một IP. Khi đó
+          # giới hạn theo IP biến thành giới hạn toàn cục: chỉ cần 20 lần đăng nhập
+          # sai là cả hệ thống không ai đăng nhập được trong 15 phút.
+          #
+          # CHÚ Ý namespace: SCG 5.x gắn @ConfigurationProperties("
+          # spring.cloud.gateway.server.webflux.x-forwarded") TRÊN CHÍNH class
+          # XForwardedHeadersFilter. Khoá cũ "spring.cloud.gateway.x-forwarded.*"
+          # không tồn tại và bị Spring bỏ qua âm thầm — đặt vào đó chỉ tạo cảm
+          # giác đã cấu hình mà gateway vẫn hành xử như cũ.
+          x-forwarded:
+            enabled: true
+            # Ghi IP client vào CUỐI chuỗi X-Forwarded-For thay vì ghi đè, để giữ
+            # được chuỗi proxy khi có nhiều tầng.
+            for-append: true
+          # ---- Chống giả mạo X-Forwarded-For ở biên ----
+          # SCG 5.x so remote address của request (tức TCP peer) với regex này:
+          #   - KHỚP      -> giữ X-Forwarded-For do client gửi, rồi nối thêm IP peer
+          #                  vào cuối chuỗi (x-forwarded.for-append).
+          #   - KHÔNG khớp -> XOÁ HẾT X-Forwarded-* do client gửi và RETURN NGAY,
+          #                  KHÔNG ghi IP thật. Nghĩa là: không khai IP proxy nào ở
+          #                  đây thì gateway im lặng hoàn toàn, và auth-service sẽ
+          #                  thấy IP của gateway cho MỌI user -> giới hạn theo IP
+          #                  biến thành giới hạn toàn cục.
+          #
+          # Vì vậy phải khai đúng TCP peer mà gateway thực sự nhìn thấy. Giá trị đã
+          # đo bằng log TRACE (org.springframework.cloud.gateway.filter.headers):
+          #   192.168.65.1 -> Docker Desktop trên macOS/Windows
+          #   172.28.0.1   -> Docker trên Linux (cổng bridge)
+          #   127.0.0.1    -> khi chạy gateway không trong container
+          # Cả ba đều là đường vào của chính Docker, không phải client thật, nên
+          # tin chúng không mở lỗ hổng. Khi triển khai production sau nginx/ALB,
+          # đổi sang IP của proxy đó, ví dụ: '^10\.0\.1\.5$'
+          # Regex trong YAML: viết trong nháy đơn, dấu \ giữ nguyên là \.
+          # Không cần ^ và $: SCG dùng Matcher.matches() nên regex phải khớp trọn
+          # chuỗi. Bỏ $ còn giúp tránh lỗi Docker Compose tự escape $ thành $$.
+          trusted-proxies: '${GATEWAY_TRUSTED_PROXIES:(192\.168\.65\.1|172\.28\.0\.1|127\.0\.0\.1)}'
+          # ---- Định tuyến ----
+          # Spring Cloud Gateway 5.x dùng namespace "gateway.server.webflux"
+          discovery:
+            locator:
+              enabled: false
+          routes:
+            # ---- Tài liệu API ----
+            # Chỉ route file JSON OpenAPI. Swagger UI mở trực tiếp ở từng service
+            # (8081/8082) vì mỗi service một tài liệu riêng và UI cần đường dẫn
+            # tĩnh /swagger-ui/** cùng origin.
+            - id: auth-service-docs
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              predicates:
+                - Path=/auth/v3/api-docs
+              filters:
+                - RewritePath=/auth/v3/api-docs, /v3/api-docs
+            - id: user-service-docs
+              uri: ${USER_SERVICE_URI:http://localhost:8082}
+              predicates:
+                - Path=/user/v3/api-docs
+              filters:
+                - RewritePath=/user/v3/api-docs, /v3/api-docs
+            - id: booking-service-docs
+              uri: ${BOOKING_SERVICE_URI:http://localhost:8083}
+              predicates:
+                - Path=/booking/v3/api-docs
+              filters:
+                - RewritePath=/booking/v3/api-docs, /v3/api-docs
+            # ---- Tài liệu API payment-service ----
+            - id: payment-service-docs
+              uri: ${PAYMENT_SERVICE_URI:http://localhost:8084}
+              predicates:
+                - Path=/payment/v3/api-docs
+              filters:
+                - RewritePath=/payment/v3/api-docs, /v3/api-docs
+            # ---- Auth service (đăng ký / đăng nhập / JWT / đổi mật khẩu) ----
+            - id: auth-service
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              predicates:
+                - Path=/api/auth/**
+            # ---- Admin tài khoản: POST /api/admin/users (tạo) và
+            # PATCH /api/admin/users/{id}/unlock (gỡ khoá) -> auth-service ----
+            # GET của đường dẫn này thuộc user-service, xem route dưới
+            - id: auth-service-admin-create
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              predicates:
+                - Path=/api/admin/users
+                - Method=POST
+            - id: auth-service-admin-unlock
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              predicates:
+                - Path=/api/admin/users/*/unlock
+                - Method=PATCH
+            # ---- User service (hồ sơ cá nhân, danh sách người dùng) ----
+            - id: user-service
+              uri: ${USER_SERVICE_URI:http://localhost:8082}
+              predicates:
+                - Path=/api/users/**,/api/admin/users/**
+            # ---- Booking service (chuyến xe, đặt vé, đánh giá) ----
+            # Catalog (locations, routes, trips, seats, reviews) và booking nằm
+            # CHUNG booking-service + booking_db, xem db.md mục B1.
+            - id: booking-service
+              uri: ${BOOKING_SERVICE_URI:http://localhost:8083}
+              predicates:
+                - Path=/api/trips/**,/api/bookings/**,/api/seats/**,/api/locations/**,/api/routes/**,/api/bus-companies/**,/api/stop-points/**,/api/reviews/**,/api/admin/trips/**,/api/admin/routes/**,/api/admin/bus-companies/**,/api/admin/locations/**,/api/admin/bookings/**
+            # ---- Payment service (Stripe Checkout + webhook) ----
+            # checkout-session cần JWT; webhook Stripe gọi trực tiếp vào service,
+            # xác thực bằng chữ ký Stripe-Signature (không qua JWT).
+            # KHÔNG route /api/internal/** của booking-service ra ngoài.
+            - id: payment-service
+              uri: ${PAYMENT_SERVICE_URI:http://localhost:8084}
+              predicates:
+                - Path=/api/payments/**
+            # KHÔNG có route cho driver-service / notification-service: cả hai
+            # không có trong requirement.md, không có bảng trong db.md, và đã
+            # xoá thư mục rỗng. Thêm route tới chúng sẽ chỉ ra 503 vĩnh viễn.
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 30s
+
+# ---- Swagger UI gop ----
+# Truoc day gateway KHONG co Swagger UI: /swagger-ui.html tra 404, con UI phai
+# mo rieng o 8081 va 8082. Bay gio mo mot dia chi la xem duoc ca hai tai lieu.
+# UI doc 2 file JSON qua chinh 2 route /auth/v3/api-docs va /user/v3/api-docs
+# o ben tren -> cung origin, khong can CORS.
+#
+# BA QUAN TRONG - KHONG DUOC TAT springdoc.api-docs.enabled:
+#   springdoc gop UI vao chung mot chuoi dieu kien. SwaggerConfig (webflux) co
+#   @ConditionalOnBean(SpringDocConfiguration.class), ma SpringDocConfiguration
+#   lai bi chinh `springdoc.api-docs.enabled` khoa lai. Tat no -> ca UI bien
+#   mat, /swagger-ui.html quay ve 404, ma khong co dong log bao loi nao.
+#   Da that: cai 404 doc la "thieu route" nhung nguyen do thi sai.
+#   Ha nhe do la gateway van co /v3/api-docs rieng, no rong (khong co controller
+#   nghiep vu) va duoc dung lam spec mac dinh. UI khong bi anh huong: da dat
+#   `urls` nen no chi hien 2 muc tren, dung dropdown de chon.
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    # PHAI nam duoi springdoc.swagger-ui.urls. Truoc day khoa `urls` bi dat o
+    # cap goc YAML nen springdoc bo qua hoan toan: dropdown chi hien spec rong
+    # cua chinh gateway, khong co auth/user/booking/payment -> nguoi dung thay
+    # "Swagger thieu API" du tung service van co /v3/api-docs day du.
+    urls:
+      - name: auth-service
+        url: /auth/v3/api-docs
+      - name: user-service
+        url: /user/v3/api-docs
+      - name: booking-service
+        url: /booking/v3/api-docs
+      - name: payment-service
+        url: /payment/v3/api-docs
+
+server:
+  port: 8080
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
