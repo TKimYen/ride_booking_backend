@@ -58,7 +58,8 @@ public class StripeService {
                     .setCancelUrl(properties.getCancelUrl())
                     .setClientReferenceId(String.valueOf(bookingId))
                     .putMetadata("bookingId", String.valueOf(bookingId))
-                    .putMetadata("userId", String.valueOf(userId))
+                    // userId null = đơn của khách vãng lai
+                    .putMetadata("userId", userId == null ? "guest" : String.valueOf(userId))
                     .addLineItem(SessionCreateParams.LineItem.builder()
                             .setQuantity(1L)
                             .setPriceData(SessionCreateParams.LineItem.PriceData.builder()

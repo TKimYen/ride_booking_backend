@@ -37,7 +37,7 @@ Nhiệm vụ điểm cộng (Từ từ làm sau): Thực hiện Deploy Backend l
 
 
 
-Link DB: /Users/nguyenanhhuy/Desktop/ride-booking-microservices/db.md
+Link DB: [db.md](db.md)
 
 ---
 
@@ -61,6 +61,12 @@ Thứ tự làm đã chốt ở [db.md](db.md) mục C. Trạng thái hiện t�
   [API.md](API.md) mục 11.7–11.8. 100 test booking chạy xanh, có test tranh ghế
   hai luồng thật.
 - Giai đoạn 3 (đánh giá ghi, dashboard thống kê) chưa làm; bảng và route đã sẵn.
+  **Lộ trình còn lại và các quyết định đã chốt** (cổng thanh toán, quy tắc đánh giá,
+  định nghĩa dashboard, khách vãng lai...) nằm ở [PROJECT_STATUS.md](PROJECT_STATUS.md).
+- Khác biệt so với đặc tả đã chốt: thanh toán chính dùng **Stripe test mode** thay
+  VNPAY (VNPAY là điểm cộng); **khách vãng lai đặt vé được không cần đăng nhập** (như
+  Vexere — đã làm 2026-10-22): bấm "Chọn chỗ" chỉ gợi ý đăng nhập để tự điền thông tin,
+  không chặn. Khách vãng lai tra cứu vé bằng mã vé + SĐT và không được viết đánh giá.
 - **payment-service — Stripe Checkout: XONG (chờ khoá test để chạy E2E).** Service
   riêng cổng `8084`, KHÔNG có database riêng: ghi bảng `payments` qua API nội bộ
   `/api/internal/bookings/**` (header `X-Internal-Key`) của booking-service, nhờ vậy

@@ -11,6 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 
 /**
@@ -20,9 +21,15 @@ import java.time.LocalDateTime;
  * {@code user_db} nên không tham chiếu được, và một khoá ngoái chéo database sẽ
  * làm booking-service không xoá được database mà không phá dữ liệu nơi khác.
  * Tên người đánh giá lấy qua user-service.
+ *
+ * <p>{@code booking} chứng minh người viết đã đi chuyến; {@code company} chép
+ * từ {@code trip.company} để tính điểm theo nhà xe. Cả hai NULL được vì đánh
+ * giá seed cũ không gắn đơn. Đánh giá {@code hidden} không hiện và không tính
+ * vào điểm trung bình.
  */
 @Entity
-@Table(name = "reviews")
+@Table(name = "reviews", uniqueConstraints = @UniqueConstraint(
+		name = "uk_reviews_booking", columnNames = "booking_id"))
 public class Review {
 
 	@Id
@@ -35,6 +42,19 @@ public class Review {
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "trip_id", nullable = false)
 	private Trip trip;
+
+	/** Đơn đã đi của người viết; UNIQUE nên mỗi đơn một đánh giá. */
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "booking_id")
+	private Booking booking;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "company_id")
+	private BusCompany company;
+
+	/** Admin ẩn bình luận vi phạm. Boolean vì lý do giống {@code Route.featured}. */
+	@Column(name = "is_hidden")
+	private Boolean hidden = false;
 
 	/** 1..5, có CHECK ở DB. */
 	@Column(name = "rating", nullable = false)
@@ -53,6 +73,12 @@ public class Review {
 	void onCreate() {
 		if (createdAt == null) {
 			createdAt = LocalDateTime.now();
+		}
+		if (hidden == null) {
+			hidden = false;
+		}
+		if (company == null && trip != null) {
+			company = trip.getCompany();
 		}
 	}
 
@@ -111,5 +137,29 @@ public class Review {
 
 	public LocalDateTime getUpdatedAt() {
 		return updatedAt;
+	}
+
+	public Booking getBooking() {
+		return booking;
+	}
+
+	public void setBooking(Booking booking) {
+		this.booking = booking;
+	}
+
+	public BusCompany getCompany() {
+		return company;
+	}
+
+	public void setCompany(BusCompany company) {
+		this.company = company;
+	}
+
+	public boolean isHidden() {
+		return Boolean.TRUE.equals(hidden);
+	}
+
+	public void setHidden(boolean hidden) {
+		this.hidden = hidden;
 	}
 }

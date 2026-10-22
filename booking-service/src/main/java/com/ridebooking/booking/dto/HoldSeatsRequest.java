@@ -14,6 +14,9 @@ import java.util.List;
  *
  * <p>Ghế được gửi theo id (lấy từ sơ đồ ghế), không theo tên: tên ghế có thể đổi
  * khi Admin đổi loại xe, còn id thì cố định.
+ *
+ * <p>Gửi kèm JWT thì đơn thuộc tài khoản; không có JWT thì là đơn khách vãng lai
+ * và {@code contactEmail} trở thành bắt buộc.
  */
 public record HoldSeatsRequest(
 
@@ -45,6 +48,7 @@ public record HoldSeatsRequest(
 
         @Email(message = "Email không hợp lệ")
         @Size(max = 255, message = "Email tối đa 255 ký tự")
-        @Schema(description = "Bỏ trống thì lấy email từ token đăng nhập", example = "a@example.com")
+        @Schema(description = "Bỏ trống thì lấy email từ token đăng nhập. BẮT BUỘC với khách vãng lai",
+                example = "a@example.com")
         String contactEmail) {
 }

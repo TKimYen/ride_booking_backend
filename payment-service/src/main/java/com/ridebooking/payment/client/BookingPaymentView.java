@@ -20,5 +20,12 @@ public record BookingPaymentView(
         String currency,
         String status,
         LocalDateTime expiresAt,
-        boolean payable) {
+        boolean payable,
+        // true = đơn của khách vãng lai và X-Guest-Token chuyển tiếp khớp đơn.
+        // Boolean (không phải boolean): booking-service bản cũ không gửi field này -> null = false.
+        Boolean guestAccess) {
+
+    public boolean hasGuestAccess() {
+        return Boolean.TRUE.equals(guestAccess);
+    }
 }

@@ -35,9 +35,20 @@ public class PaymentService {
     }
 
     public CheckoutSessionResponse createCheckoutSession(Integer bookingId, AuthenticatedUser user) {
-        BookingPaymentView booking = bookingClient.getForPayment(bookingId);
+        return createCheckoutSession(bookingId, user, null);
+    }
 
-        if (!user.isAdmin() && !Objects.equals(booking.userId(), user.id())) {
+    /**
+     * {@code user} null = khách vãng lai, khi đó bắt buộc {@code guestToken} khớp đơn.
+     * Quyền: chủ đơn, Admin, hoặc token khách đúng (booking-service xác nhận).
+     */
+    public CheckoutSessionResponse createCheckoutSession(Integer bookingId, AuthenticatedUser user,
+                                                         String guestToken) {
+        BookingPaymentView booking = bookingClient.getForPayment(bookingId, guestToken);
+
+        boolean allowed = booking.hasGuestAccess()
+                || (user != null && (user.isAdmin() || Objects.equals(booking.userId(), user.id())));
+        if (!allowed) {
             throw new AccessDeniedException("Bạn không có quyền thanh toán đơn này");
         }
         if (!booking.payable()) {
@@ -49,7 +60,7 @@ public class PaymentService {
         }
 
         Session session = stripeService.createCheckoutSession(
-                booking.id(), user.id(), booking.totalPrice().longValue());
+                booking.id(), user == null ? null : user.id(), booking.totalPrice().longValue());
 
         return new CheckoutSessionResponse(
                 booking.id(),

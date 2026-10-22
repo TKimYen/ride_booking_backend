@@ -30,7 +30,7 @@ Tìm kiếm chuyến xe → xem sơ đồ ghế 2 tầng → giữ ghế 10 phú
 
 ```
                         ┌─────────────────┐
-   Frontend  ──────────►│   api-gateway   │  :8080  ← ĐIỂM VÀO DUY NHẤT
+   Frontend  ──────────►│   api-gateway   │  :8088  ← ĐIỂM VÀO DUY NHẤT
    (React)              └────────┬────────┘
                                  │
                     ┌────────────┼─────────────┬──────────────┐
@@ -51,7 +51,7 @@ Tìm kiếm chuyến xe → xem sơ đồ ghế 2 tầng → giữ ghế 10 phú
 | Service            | Port | Database     | Vai trò                                                        |
 | ------------------ | ---- | ------------ | -------------------------------------------------------------- |
 | `discovery-server` | 8761 | —            | Eureka Server, service registry                                |
-| `api-gateway`      | 8080 | —            | Điểm vào duy nhất, định tuyến, CORS, rate-limit IP             |
+| `api-gateway`      | 8088 | —            | Điểm vào duy nhất, định tuyến, CORS, rate-limit IP             |
 | `auth-service`     | 8081 | `auth_db`    | Đăng ký / đăng nhập / JWT / email xác minh, quản lý tài khoản  |
 | `user-service`     | 8082 | `user_db`    | Hồ sơ cá nhân, danh sách user cho Admin                        |
 | `booking-service`  | 8083 | `booking_db` | Catalog chuyến xe, sơ đồ ghế, đặt vé, giữ ghế, đánh giá        |
@@ -135,8 +135,8 @@ docker compose logs -f api-gateway   # theo dõi log từng service
 
 | Kiểm tra                       | Địa chỉ                                     | Kết quả mong đợi                    |
 | ------------------------------ | ------------------------------------------- | ----------------------------------- |
-| Gateway                        | http://localhost:8080/api/locations         | `200` + danh sách địa điểm          |
-| **Swagger UI (gộp 4 service)** | http://localhost:8080/swagger-ui/index.html | Giao diện có dropdown chọn tài liệu |
+| Gateway                        | http://localhost:8088/api/locations         | `200` + danh sách địa điểm          |
+| **Swagger UI (gộp 4 service)** | http://localhost:8088/swagger-ui/index.html | Giao diện có dropdown chọn tài liệu |
 | Eureka dashboard               | http://localhost:8761                       | Thấy đủ 5 client đăng ký            |
 | Mailpit (hộp thư)              | http://localhost:8025                       | Xem email xác minh / reset mật khẩu |
 | Health auth-service            | http://localhost:8081/actuator/health       | `{"status":"UP"}`                   |
@@ -146,18 +146,18 @@ Chạy thử bằng `curl`:
 
 ```bash
 # Đăng nhập lấy token
-curl.exe -s -X POST "http://localhost:8080/api/auth/login" `
+curl.exe -s -X POST "http://localhost:8088/api/auth/login" `
   -H "Content-Type: application/json" `
   --data-raw '{\"email\":\"admin@ridebooking.local\",\"password\":\"Admin@12345\"}'
 
 # Gọi API có cần token
-$TOKEN = (curl.exe -s -X POST "http://localhost:8080/api/auth/login" `
+$TOKEN = (curl.exe -s -X POST "http://localhost:8088/api/auth/login" `
   -H "Content-Type: application/json" `
   --data-raw '{\"email\":\"admin@ridebooking.local\",\"password\":\"Admin@12345\"}' | ConvertFrom-Json).accessToken
 
 $TOKEN
 
-curl -s http://localhost:8080/api/auth/me -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:8088/api/auth/me -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Bước 5 — Nạp dữ liệu mẫu (khuyến nghị)
@@ -276,7 +276,7 @@ ride-booking-microservices/
 ├── .env.example                 # Mẫu cấu hình (copy thành .env)
 │
 ├── discovery-server/            # :8761  Eureka Server
-├── api-gateway/                 # :8080  Gateway + Swagger UI gộp
+├── api-gateway/                 # :8088  Gateway + Swagger UI gộp
 ├── auth-service/                # :8081  Auth, JWT, email       (auth_db)
 ├── user-service/                # :8082  Hồ sơ cá nhân           (user_db)
 ├── booking-service/             # :8083  Catalog, ghế, đặt vé    (booking_db)
@@ -447,8 +447,9 @@ BOOKING_DB_PORT=15435
 GATEWAY_IP=172.28.0.10   # giữ nguyên
 ```
 
-Cổng `8080` (gateway) khai trực tiếp trong `docker-compose.yml` — sửa dòng
-`"8080:8080"` nếu cần.
+Gateway dùng cổng **`8088`** (dự án không dùng `8080`), cả khi chạy Docker lẫn chạy bằng
+Maven/IDE. Máy bận cổng 8088 thì đổi cổng trên máy bằng `GATEWAY_PORT` trong `.env`;
+trong container gateway vẫn nghe `8088`.
 
 </details>
 
@@ -488,7 +489,7 @@ Hệ thống khoá **cặp (email + IP)** sau 5 lần sai trong 15 phút. Chờ 
 đăng nhập lại, hoặc admin gỡ khoá:
 
 ```bash
-curl -X PATCH http://localhost:8080/api/admin/users/{id}/unlock \
+curl -X PATCH http://localhost:8088/api/admin/users/{id}/unlock \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
@@ -549,7 +550,7 @@ Những thứ **an toàn cho local nhưng BẮT BUỘC phải đổi khi deploy*
 6. `GATEWAY_TRUSTED_PROXIES` / `AUTH_TRUSTED_PROXY_IPS` → IP của nginx/ALB thật.
    Nếu không khai đúng, **mọi người dùng bị ghi nhận chung một IP** và giới hạn
    đăng nhập/email biến thành giới hạn toàn cục.
-7. Chỉ expose `api-gateway` (8080) ra ngoài. Các port khác đã được bind `127.0.0.1`
+7. Chỉ expose `api-gateway` (8088) ra ngoài. Các port khác đã được bind `127.0.0.1`
    trong `docker-compose.yml` — giữ nguyên. **Không bao giờ** expose Eureka (8761).
 8. `EMAIL_MAX_PER_IP` — compose đặt riêng `200` cho dev; production nên để mặc
    định `30` hoặc thấp hơn.
@@ -563,10 +564,13 @@ Những thứ **an toàn cho local nhưng BẮT BUỘC phải đổi khi deploy*
 | [API.md](API.md)                 | **Tài liệu API đầy đủ** — mọi endpoint, ví dụ request/response, format lỗi, bảng status code, luồng xác thực, hardening |
 | [db.md](db.md)                   | Thiết kế database (đặc tả logic + database vật lý sau khi tách)                                                         |
 | [requirement.md](requirement.md) | Đặc tả nghiệp vụ, danh sách page và phân công thành viên                                                                |
+| [PROJECT_STATUS.md](PROJECT_STATUS.md) | **Trạng thái, lộ trình và các quyết định đã chốt** — đọc file này trước khi nhận việc                       |
+| [HUONG_DAN_HOAN_THIEN_BE.md](../HUONG_DAN_HOAN_THIEN_BE.md) | Cách làm từng việc backend còn thiếu (code khung, test)                                          |
+| [../HUONG_DAN_FRONTEND.md](../HUONG_DAN_FRONTEND.md) | Thiết kế frontend: route, đặc tả trang, design system                                                |
 | [.env.example](.env.example)     | Toàn bộ biến môi trường kèm chú thích                                                                                   |
 
 Xem nhanh API mà không cần đọc file: mở
-http://localhost:8080/swagger-ui/index.html (dropdown chọn được auth / user /
+http://localhost:8088/swagger-ui/index.html (dropdown chọn được auth / user /
 booking / payment), bấm **Authorize** rồi dán `accessToken` lấy từ
 `POST /api/auth/login`.
 

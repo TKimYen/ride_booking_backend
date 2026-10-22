@@ -1,6 +1,7 @@
 package com.ridebooking.booking.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ridebooking.booking.controller.BookingController;
 import com.ridebooking.booking.security.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -18,6 +19,11 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.AndRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -27,8 +33,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  *
  * <p>Khác user-service ở chỗ: phần lớn endpoint catalog phải mở cho khách
  * chưa đăng nhập. Theo requirement.md, Nhóm 1 (Guest) gồm Trang chủ và Trang
- * Danh sách kết quả — người dùng tìm chuyến trước, đăng nhập sau (chỉ khi bấm
- * "Chọn chỗ"). Nếu chặn hết thì Trang chủ không hiện được gì.
+ * Danh sách kết quả. Khách vãng lai còn đặt vé được không cần tài khoản
+ * (db.md B8): quyền với đơn chứng minh bằng header {@code X-Guest-Token}.
  *
  * <p>Nguyên tắc: {@code permitAll} CHỈ áp cho phương thức GET trên đường dẫn
  * catalog. Mọi thao tác ghi đều đòi {@code ADMIN}. Ràng buộc này viết bằng
@@ -61,6 +67,14 @@ public class SecurityConfig {
             "/api/stop-points/**",
             "/api/reviews/**");
 
+    /** Request vào một đơn cụ thể có kèm header token khách vãng lai. */
+    private static final RequestMatcher GUEST_BOOKING_REQUEST = new AndRequestMatcher(
+            request -> StringUtils.hasText(request.getHeader(BookingController.GUEST_TOKEN_HEADER)),
+            new OrRequestMatcher(
+                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/api/bookings/*"),
+                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/bookings/*/pay"),
+                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/bookings/*/cancel")));
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -84,8 +98,14 @@ public class SecurityConfig {
                         // requirement.md giao Trang Quản lý Chuyến xe cho Thành viên 4.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
-                        // Giai đoạn 2 mới có controller, nhưng khoá sẵn từ bây giờ
-                        // để sau này không vô tình để lộ API đặt vé cho khách.
+                        // Khách vãng lai đặt vé được (db.md B8). "Đơn của tôi" và gắn
+                        // vé vào tài khoản thì luôn cần JWT; khai TRƯỚC rule permitAll.
+                        .requestMatchers(HttpMethod.GET, "/api/bookings").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/bookings/claim").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/bookings", "/api/bookings/lookup").permitAll()
+                        // Xem/thanh toán/huỷ một đơn: mở khi có X-Guest-Token, service tự
+                        // so token với hash. Không có header thì vẫn đòi JWT -> 401 rõ ràng.
+                        .requestMatchers(GUEST_BOOKING_REQUEST).permitAll()
                         .requestMatchers("/api/bookings/**").authenticated()
 
                         .anyRequest().authenticated())
@@ -108,7 +128,8 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(corsProperties.getAllowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of(
-                "Authorization", "Content-Type", "X-Internal-Key", "X-Forwarded-For"));
+                "Authorization", "Content-Type", "X-Internal-Key", "X-Forwarded-For",
+                BookingController.GUEST_TOKEN_HEADER));
         configuration.setExposedHeaders(List.of("Location", "Retry-After"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);

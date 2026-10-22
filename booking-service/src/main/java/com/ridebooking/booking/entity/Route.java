@@ -49,6 +49,18 @@ public class Route {
 	@Column(name = "duration_minutes")
 	private Integer durationMinutes;
 
+	/** Ảnh cho block "Tuyến đường phổ biến" ở Trang chủ. */
+	@Column(name = "image_url", length = 500)
+	private String imageUrl;
+
+	/**
+	 * Admin chọn hiện ở Trang chủ. DB đặt NOT NULL DEFAULT FALSE; entity để
+	 * {@code Boolean} vì {@code ddl-auto=update} không thêm được cột NOT NULL vào
+	 * bảng đã có dữ liệu. Đọc qua {@link #isFeatured()} để NULL coi như false.
+	 */
+	@Column(name = "is_featured")
+	private Boolean featured = false;
+
 	@Column(name = "created_at", nullable = false)
 	private LocalDateTime createdAt;
 
@@ -56,6 +68,9 @@ public class Route {
 	void onCreate() {
 		if (createdAt == null) {
 			createdAt = LocalDateTime.now();
+		}
+		if (featured == null) {
+			featured = false;
 		}
 	}
 
@@ -113,5 +128,21 @@ public class Route {
 
 	public void setCreatedAt(LocalDateTime createdAt) {
 		this.createdAt = createdAt;
+	}
+
+	public String getImageUrl() {
+		return imageUrl;
+	}
+
+	public void setImageUrl(String imageUrl) {
+		this.imageUrl = imageUrl;
+	}
+
+	public boolean isFeatured() {
+		return Boolean.TRUE.equals(featured);
+	}
+
+	public void setFeatured(boolean featured) {
+		this.featured = featured;
 	}
 }

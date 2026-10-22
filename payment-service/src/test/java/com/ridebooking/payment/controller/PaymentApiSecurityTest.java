@@ -1,5 +1,6 @@
 package com.ridebooking.payment.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,6 +38,18 @@ class PaymentApiSecurityTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"bookingId\":1}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Khách vãng lai gửi X-Guest-Token thì qua được tầng bảo mật (không 401)")
+    void checkoutSessionAcceptsGuestTokenHeader() throws Exception {
+        // booking-service ở cổng 9 không tồn tại nên request lỗi ở bước sau; điều cần
+        // kiểm là Spring Security không chặn với 401 như khi thiếu cả JWT lẫn token.
+        mockMvc.perform(post("/api/payments/checkout-session")
+                        .header("X-Guest-Token", "some-guest-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"bookingId\":1}"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
     }
 
     @Test

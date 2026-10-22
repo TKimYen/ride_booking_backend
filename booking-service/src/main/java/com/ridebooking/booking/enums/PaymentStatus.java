@@ -16,5 +16,8 @@ public enum PaymentStatus {
 	SUCCESS,
 
 	/** Cổng báo thất bại hoặc khách huỷ tại cổng. */
-	FAILED
+	FAILED,
+
+	/** Đã thành công rồi được hoàn tiền (toàn bộ hoặc một phần, xem {@code refund_amount}). */
+	REFUNDED
 }

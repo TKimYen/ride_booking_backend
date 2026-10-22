@@ -15,11 +15,16 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
 
 	Optional<Review> findByUserIdAndTripId(Integer userId, Integer tripId);
 
-	/** join fetch trip vì mỗi dòng đánh giá cần thông tin chuyến để hiển thị. */
+	/**
+	 * join fetch trip vì mỗi dòng đánh giá cần thông tin chuyến để hiển thị.
+	 * Ba truy vấn theo chuyến đều bỏ đánh giá Admin đã ẩn; COALESCE vì cột có thể
+	 * NULL trên database chưa chạy 03_booking_db.sql.
+	 */
 	@Query("""
 			SELECT r FROM Review r
 			JOIN FETCH r.trip
 			WHERE r.trip.id = :tripId
+			  AND COALESCE(r.hidden, false) = false
 			ORDER BY r.createdAt DESC, r.id DESC
 			""")
 	Page<Review> findByTripId(@Param("tripId") Integer tripId, Pageable pageable);
@@ -28,6 +33,7 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
 	@Query("""
 			SELECT COALESCE(AVG(r.rating), 0), COUNT(r) FROM Review r
 			WHERE r.trip.id = :tripId
+			  AND COALESCE(r.hidden, false) = false
 			""")
 	List<Object[]> ratingSummary(@Param("tripId") Integer tripId);
 
@@ -35,6 +41,7 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
 	@Query("""
 			SELECT r.rating, COUNT(r) FROM Review r
 			WHERE r.trip.id = :tripId
+			  AND COALESCE(r.hidden, false) = false
 			GROUP BY r.rating
 			""")
 	List<Object[]> ratingBreakdown(@Param("tripId") Integer tripId);

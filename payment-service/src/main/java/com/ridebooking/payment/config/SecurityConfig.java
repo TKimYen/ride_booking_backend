@@ -1,5 +1,6 @@
 package com.ridebooking.payment.config;
 
+import com.ridebooking.payment.controller.PaymentController;
 import com.ridebooking.payment.security.JwtAuthenticationFilter;
 import java.io.IOException;
 import java.util.List;
@@ -12,6 +13,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.AndRequestMatcher;
+import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -39,6 +43,13 @@ public class SecurityConfig {
                         // Webhook Stripe không có người dùng đăng nhập; bảo vệ bằng chữ ký
                         // Stripe-Signature xác thực trong StripeService.
                         .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
+                        // Khách vãng lai không có JWT: mở checkout khi có X-Guest-Token,
+                        // booking-service mới là nơi so token với đơn. Không có header thì
+                        // vẫn 401 như cũ.
+                        .requestMatchers(new AndRequestMatcher(
+                                request -> StringUtils.hasText(request.getHeader(PaymentController.GUEST_TOKEN_HEADER)),
+                                PathPatternRequestMatcher.withDefaults()
+                                        .matcher(HttpMethod.POST, "/api/payments/checkout-session"))).permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/error").permitAll()

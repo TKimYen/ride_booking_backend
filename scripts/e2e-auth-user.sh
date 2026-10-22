@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Kiểm chứng toàn bộ luồng auth + user trên stack Docker đang chạy.
 # Chạy:  ./scripts/e2e-auth-user.sh
-# Mọi request đi qua gateway http://localhost:8080, đúng như frontend thật.
+# Mọi request đi qua gateway http://localhost:8088, đúng như frontend thật.
 
 set -uo pipefail
 
-GW="${GATEWAY_URL:-http://localhost:8080}"
+GW="${GATEWAY_URL:-http://localhost:8088}"
 # API nội bộ không đi qua gateway (gateway chỉ mở public + admin routes),
 # nên gọi thẳng user-service để kiểm tra lớp bảo vệ X-Internal-Key.
 USER_DIRECT="${USER_SERVICE_URL:-http://localhost:8082}"

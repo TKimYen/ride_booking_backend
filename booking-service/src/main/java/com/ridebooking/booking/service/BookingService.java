@@ -1,5 +1,6 @@
 package com.ridebooking.booking.service;
 
+import com.ridebooking.booking.dto.BookingLookupRequest;
 import com.ridebooking.booking.dto.BookingResponse;
 import com.ridebooking.booking.dto.HoldSeatsRequest;
 import com.ridebooking.booking.dto.InternalBookingResponse;
@@ -29,6 +30,7 @@ import com.ridebooking.booking.repository.TripRepository;
 import com.ridebooking.booking.repository.TripSeatRepository;
 import com.ridebooking.booking.security.AuthenticatedUser;
 import com.ridebooking.booking.security.SecurityUtils;
+import com.ridebooking.booking.util.GuestTokens;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -100,9 +102,27 @@ public class BookingService {
     }
 
 
-    /** Giữ ghế và tạo đơn PENDING trong CÙNG một transaction. */
+    /** Giữ ghế và tạo đơn PENDING của tài khoản trong CÙNG một transaction. */
     @Transactional
     public BookingResponse holdSeats(Integer userId, HoldSeatsRequest request) {
+        return createBooking(userId, null, request);
+    }
+
+    /**
+     * Giữ ghế cho khách vãng lai (không JWT). Đơn có {@code userId = NULL}; quyền
+     * với đơn chứng minh bằng token trả về đúng MỘT lần trong {@code guestToken}.
+     * Email bắt buộc vì đó là kênh duy nhất để gửi vé cho khách.
+     */
+    @Transactional
+    public BookingResponse holdSeatsAsGuest(HoldSeatsRequest request) {
+        if (request.contactEmail() == null || request.contactEmail().isBlank()) {
+            throw new BadRequestException("Khách chưa đăng nhập phải nhập email để nhận vé");
+        }
+        String token = GuestTokens.newToken();
+        return createBooking(null, GuestTokens.hash(token), request).withGuestToken(token);
+    }
+
+    private BookingResponse createBooking(Integer userId, String guestTokenHash, HoldSeatsRequest request) {
         LocalDateTime now = LocalDateTime.now();
 
         Trip trip = tripRepository.findById(request.tripId())
@@ -151,6 +171,7 @@ public class BookingService {
 
         Booking booking = new Booking();
         booking.setUserId(userId);
+        booking.setGuestTokenHash(guestTokenHash);
         booking.setTrip(trip);
         booking.setPickupPoint(pickup);
         booking.setDropoffPoint(dropoff);
@@ -169,6 +190,8 @@ public class BookingService {
             total = total.add(price);
             details.add(new BookingDetail(booking, seat, price));
         }
+        booking.setSubtotalPrice(total);
+        booking.setDiscountAmount(BigDecimal.ZERO);
         booking.setTotalPrice(total);
         bookingRepository.save(booking);
         bookingDetailRepository.saveAll(details);
@@ -186,8 +209,14 @@ public class BookingService {
      */
     @Transactional
     public BookingResponse pay(Integer userId, Integer bookingId, PaymentRequest request) {
+        return pay(userId, null, bookingId, request);
+    }
+
+    /** Như trên, cho cả khách vãng lai: {@code guestToken} là header {@code X-Guest-Token}. */
+    @Transactional
+    public BookingResponse pay(Integer userId, String guestToken, Integer bookingId, PaymentRequest request) {
         LocalDateTime now = LocalDateTime.now();
-        Booking booking = requireAccessible(bookingId, userId, true);
+        Booking booking = requireAccessible(bookingId, userId, guestToken, true);
         List<BookingDetail> details = bookingDetailRepository.findByBookingIdWithSeat(bookingId);
 
         if (booking.getStatus() == BookingStatus.PAID) {
@@ -288,6 +317,7 @@ public class BookingService {
         tripSeatRepository.saveAll(seats);
 
         booking.setStatus(BookingStatus.PAID);
+        booking.setPaidAt(now);
 
         // (payment_gateway, transaction_no) là UNIQUE. Nếu mã đã tồn tại: nếu thuộc
         // đơn khác thì từ chối, nếu cùng đơn (ví dụ lần trước FAILED) thì cập nhật
@@ -311,11 +341,11 @@ public class BookingService {
      * Dữ liệu tối thiểu payment-service cần để tạo phiên Stripe: mã đơn, số tiền,
      * trạng thái và hạn giữ ghế. Không lộ thông tin liên hệ hay ghế.
      */
-    public InternalBookingResponse getForPayment(Integer bookingId) {
+    public InternalBookingResponse getForPayment(Integer bookingId, String guestToken) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy đơn đặt vé với id " + bookingId));
-        return InternalBookingResponse.from(booking);
+        return InternalBookingResponse.from(booking, guestCanAccess(booking, guestToken));
     }
 
 
@@ -328,8 +358,14 @@ public class BookingService {
      */
     @Transactional
     public BookingResponse cancel(Integer userId, Integer bookingId) {
+        return cancel(userId, null, bookingId);
+    }
+
+    /** Như trên, cho cả khách vãng lai: {@code guestToken} là header {@code X-Guest-Token}. */
+    @Transactional
+    public BookingResponse cancel(Integer userId, String guestToken, Integer bookingId) {
         LocalDateTime now = LocalDateTime.now();
-        Booking booking = requireAccessible(bookingId, userId, false);
+        Booking booking = requireAccessible(bookingId, userId, guestToken, false);
         List<BookingDetail> details = bookingDetailRepository.findByBookingIdWithSeat(bookingId);
 
         if (booking.getStatus() == BookingStatus.CANCELLED) {
@@ -363,6 +399,7 @@ public class BookingService {
         tripSeatRepository.saveAll(seats);
 
         booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancelledAt(now);
         return BookingResponse.from(booking, details, null, now);
     }
 
@@ -379,9 +416,59 @@ public class BookingService {
 
     /** Chi tiết một đơn; chỉ chủ đơn hoặc Admin. */
     public BookingResponse getOne(Integer userId, Integer bookingId) {
-        Booking booking = requireAccessible(bookingId, userId, true);
+        return getOne(userId, null, bookingId);
+    }
+
+    /** Chi tiết một đơn; chủ đơn, Admin, hoặc khách vãng lai có token đúng. */
+    public BookingResponse getOne(Integer userId, String guestToken, Integer bookingId) {
+        Booking booking = requireAccessible(bookingId, userId, guestToken, true);
         List<BookingDetail> details = bookingDetailRepository.findByBookingIdWithSeat(bookingId);
         return BookingResponse.from(booking, details, latestSuccessfulPayment(bookingId), LocalDateTime.now());
+    }
+
+    /**
+     * Trang Tra cứu vé: mã vé + SĐT liên hệ.
+     *
+     * <p>Đơn của khách vãng lai được cấp token MỚI (token cũ hết hiệu lực) để khách
+     * thanh toán/huỷ tiếp từ thiết bị khác. Đơn của tài khoản chỉ trả thông tin, muốn
+     * thao tác thì đăng nhập. Sai mã hoặc sai SĐT đều trả cùng một thông báo, không
+     * cho biết mã có tồn tại hay không.
+     */
+    @Transactional
+    public BookingResponse lookup(BookingLookupRequest request) {
+        Booking booking = findByCodeAndPhone(request);
+        List<BookingDetail> details = bookingDetailRepository.findByBookingIdWithSeat(booking.getId());
+        BookingResponse response = BookingResponse.from(
+                booking, details, latestSuccessfulPayment(booking.getId()), LocalDateTime.now());
+        if (!booking.isGuest()) {
+            return response;
+        }
+        String token = GuestTokens.newToken();
+        booking.setGuestTokenHash(GuestTokens.hash(token));
+        return response.withGuestToken(token);
+    }
+
+    /**
+     * Gắn đơn đặt lúc chưa đăng nhập vào tài khoản đang đăng nhập. Chứng minh quyền
+     * bằng mã vé + SĐT, giống tra cứu. Sau khi gắn, token khách bị xoá (CHECK
+     * {@code ck_bookings_owner}: đơn chỉ có một kiểu chủ) và đơn hiện ở "Đơn hàng của tôi".
+     */
+    @Transactional
+    public BookingResponse claim(Integer userId, BookingLookupRequest request) {
+        Booking booking = findByCodeAndPhone(request);
+        if (!booking.isGuest() && !userId.equals(booking.getUserId())) {
+            throw new ConflictException("Vé này đã thuộc một tài khoản khác");
+        }
+        booking.setUserId(userId);
+        booking.setGuestTokenHash(null);
+        List<BookingDetail> details = bookingDetailRepository.findByBookingIdWithSeat(booking.getId());
+        return BookingResponse.from(booking, details, latestSuccessfulPayment(booking.getId()), LocalDateTime.now());
+    }
+
+    private Booking findByCodeAndPhone(BookingLookupRequest request) {
+        return bookingRepository.findByBookingCodeAndContactPhone(
+                        request.bookingCode().trim().toUpperCase(), request.phone().trim())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy vé với mã và số điện thoại này"));
     }
 
     /** Trang Quản lý Đơn hàng của Admin; {@code tripId} null = mọi chuyến. */
@@ -465,14 +552,19 @@ public class BookingService {
         return booking.getExpiresAt() != null && !booking.getExpiresAt().isAfter(now);
     }
 
-    private Booking requireAccessible(Integer bookingId, Integer userId, boolean allowAdmin) {
+    private Booking requireAccessible(Integer bookingId, Integer userId, String guestToken, boolean allowAdmin) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn đặt vé với id " + bookingId));
         boolean owner = userId != null && userId.equals(booking.getUserId());
-        if (!owner && !(allowAdmin && SecurityUtils.isAdmin())) {
+        if (!owner && !guestCanAccess(booking, guestToken) && !(allowAdmin && SecurityUtils.isAdmin())) {
             throw new AccessDeniedException("Bạn không có quyền truy cập đơn đặt vé này");
         }
         return booking;
+    }
+
+    /** Token khách chỉ mở được đơn của khách vãng lai; đơn đã gắn tài khoản thì không. */
+    private boolean guestCanAccess(Booking booking, String guestToken) {
+        return booking.isGuest() && GuestTokens.matches(guestToken, booking.getGuestTokenHash());
     }
 
     private StopPoint resolveStopPoint(Integer pointId, Integer tripId, PointType type, String label) {

@@ -50,9 +50,9 @@ USER appuser
 ARG MODULE
 ENV MODULE=${MODULE}
 
-# 8761 discovery, 8080 gateway, 8081 auth, 8082 user, 8083 booking, 8084 payment
+# 8761 discovery, 8088 gateway, 8081 auth, 8082 user, 8083 booking, 8084 payment
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0 -XX:+UseSerialGC -Djava.security.egd=file:/dev/./urandom"
 
-EXPOSE 8080 8081 8082 8083 8084 8761
+EXPOSE 8088 8081 8082 8083 8084 8761
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

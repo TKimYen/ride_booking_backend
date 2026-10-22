@@ -36,6 +36,8 @@ Table Routes {
   origin_id int [ref: > Locations.id, note: 'Nơi xuất phát']
   destination_id int [ref: > Locations.id, note: 'Nơi đến']
   name varchar [note: 'Tên tuyến (vd: Hà Nội - Sapa)']
+  image_url varchar [note: 'Ảnh block Tuyến đường phổ biến']
+  is_featured boolean [note: 'Admin chọn hiện ở Trang chủ']
 }
 
 Table Trips {
@@ -79,7 +81,15 @@ Table Trip_Seats {
 
 Table Bookings {
   id int [pk, increment]
-  user_id int [ref: > Users.id, note: 'Ai là người đặt']
+  user_id int [ref: > Users.id, note: 'Ai là người đặt. NULL = khách vãng lai (B8)']
+  booking_code varchar [unique, note: 'Mã vé hiển thị cho khách, 8 ký tự không có 0/O/1/I']
+  guest_token_hash varchar [note: 'SHA-256 hex của token khách vãng lai. Chỉ có khi user_id NULL']
+  promotion_id int [ref: > Promotions.id, note: 'Mã giảm giá đã áp, có thể NULL']
+  subtotal_price decimal [note: 'Tổng giá ghế trước giảm']
+  discount_amount decimal [note: 'Số tiền giảm, mặc định 0']
+  paid_at timestamp
+  cancelled_at timestamp
+  cancel_reason varchar
   trip_id int [ref: > Trips.id]
   pickup_point_id int [ref: > Stop_Points.id]
   dropoff_point_id int [ref: > Stop_Points.id]
@@ -97,6 +107,8 @@ Table Booking_Details {
   booking_id int [ref: > Bookings.id]
   seat_id int [ref: > Trip_Seats.id, note: 'Khóa ghế nào']
   price decimal [note: 'Giá chốt mua lúc đó (Tránh sau này nhà xe đổi giá làm sai lệch bill)']
+  passenger_name varchar [note: 'Tuỳ chọn. NULL thì dùng contact_name của đơn']
+  passenger_phone varchar
 }
 
 // ==========================================
@@ -108,6 +120,9 @@ Table Reviews {
   trip_id int [ref: > Trips.id]
   rating int [note: 'Số sao 1-5']
   comment text [note: 'Nội dung nhận xét']
+  booking_id int [unique, ref: > Bookings.id, note: 'Đơn đã đi của người viết; mỗi đơn một đánh giá']
+  company_id int [ref: > Bus_Companies.id, note: 'Chép từ trips.company_id để tính điểm theo nhà xe']
+  is_hidden boolean [note: 'Admin ẩn; ẩn thì không tính điểm']
   created_at timestamp
 }
 
@@ -122,7 +137,72 @@ Table Payments {
   amount decimal [note: 'Số tiền thực tế đã giao dịch']
   bank_code varchar [note: 'Ngân hàng sử dụng (vd: NCB, Vietcombank)']
   response_code varchar [note: 'Mã phản hồi từ API (vd: 00 là thành công)']
-  status varchar [note: 'Trạng thái giao dịch: SUCCESS, FAILED, PENDING']
+  status varchar [note: 'Trạng thái giao dịch: SUCCESS, FAILED, PENDING, REFUNDED']
+  refund_amount decimal [note: 'Số tiền đã hoàn, <= amount']
+  refunded_at timestamp
+  created_at timestamp
+}
+
+// ==========================================
+// 7. MODULE NỘI DUNG NHÀ XE & KHUYẾN MÃI
+//    (tab Giảm giá / Chính sách / Hình ảnh / Tiện ích, block Ưu đãi nổi bật)
+// ==========================================
+// Gắn theo NHÀ XE, không theo chuyến: nhập một lần dùng cho mọi chuyến.
+Table Company_Images {
+  id int [pk, increment]
+  company_id int [ref: > Bus_Companies.id]
+  image_url varchar
+  caption varchar
+  sort_order int [note: 'Thứ tự hiển thị, từ 1']
+  created_at timestamp
+}
+
+Table Amenities {
+  id int [pk, increment]
+  code varchar [unique, note: 'WIFI, WATER, BLANKET, CHARGER...']
+  name varchar
+  icon varchar [note: 'Tên icon phía frontend']
+}
+
+Table Company_Amenities {
+  company_id int [pk, ref: > Bus_Companies.id]
+  amenity_id int [pk, ref: > Amenities.id]
+}
+
+Table Company_Policies {
+  id int [pk, increment]
+  company_id int [ref: > Bus_Companies.id]
+  policy_type varchar [note: 'CANCELLATION, LUGGAGE, CHILDREN, PET, DOCUMENT, OTHER']
+  title varchar
+  content text
+  sort_order int
+}
+
+Table Cancellation_Rules {
+  id int [pk, increment]
+  company_id int [ref: > Bus_Companies.id]
+  hours_before int [note: 'Huỷ trước >= số giờ này...']
+  refund_percent int [note: '...thì hoàn bấy nhiêu %. UNIQUE (company_id, hours_before)']
+}
+
+Table Promotions {
+  id int [pk, increment]
+  code varchar [unique]
+  title varchar
+  description text
+  banner_url varchar
+  discount_type varchar [note: 'PERCENT | FIXED']
+  discount_value decimal
+  max_discount decimal [note: 'Trần cho PERCENT, NULL = không giới hạn']
+  min_order_value decimal
+  company_id int [ref: > Bus_Companies.id, note: 'NULL = mọi nhà xe']
+  route_id int [ref: > Routes.id, note: 'NULL = mọi tuyến']
+  starts_at timestamp
+  ends_at timestamp
+  usage_limit int [note: 'NULL = không giới hạn']
+  used_count int [note: 'Chỉ tăng khi đơn PAID']
+  is_featured boolean [note: 'Hiện ở block Ưu đãi nổi bật']
+  is_active boolean
   created_at timestamp
 }
 // ==========================================
@@ -290,7 +370,7 @@ Table booking_db_placeholder {
 //     Một người đánh giá một chuyến đúng một lần. Điều kiện "chuyến đã đi" ở
 //     Trang Đánh giá vốn đã đảm bảo một chuyến cho mỗi người, nhưng không có
 //     UK thì bấm hai lần vẫn ra hai dòng và điểm trung bình ở Trang chi tiết
-//     bị tính sai.
+//     bị tính sai. Từ B10 có thêm UNIQUE (booking_id); giữ cả hai.
 
 //  5. INDEX (route_id, departure_time) trên trips
 //     Phục vụ đúng truy vấn của Trang Danh sách kết quả: lọc theo tuyến rồi
@@ -330,6 +410,56 @@ Table booking_db_placeholder {
 //  UNIQUE (trip_id, seat_name) không tồn tại sau khi chạy script.
 //  ALTER TABLE thì không bị bỏ qua. PostgreSQL không có
 //  "ADD CONSTRAINT IF NOT EXISTS" nên dùng DROP CONSTRAINT IF EXISTS + ADD.
+
+// ---------------------------------------------------------------- B8
+//  Khách vãng lai đặt vé được (như Vexere). Bổ sung 2026-10-19.
+//
+//  bookings.user_id cho phép NULL. Đơn guest chứng minh quyền bằng token
+//  256-bit cấp MỘT LẦN khi tạo đơn; DB chỉ lưu SHA-256 ở guest_token_hash
+//  (cùng quy ước refresh_tokens). Sau phiên đặt vé, khách tra cứu bằng cặp
+//  (booking_code, contact_phone) — có index ix_bookings_code_phone.
+//
+//  CHECK ck_bookings_owner: đơn có đúng MỘT kiểu chủ — hoặc user_id, hoặc
+//  guest_token_hash + contact_phone. Không có CHECK này thì một đơn có thể
+//  vừa thuộc tài khoản vừa mở được bằng token, hoặc không ai mở được.
+//
+//  booking_code sinh ở @PrePersist của Booking (BookingCodeGenerator), không
+//  dùng id vì id tăng dần nên đoán được mã của người khác.
+//
+//  Guest KHÔNG được viết đánh giá: không có danh tính bền vững nên dễ spam.
+//
+//  Đã có code (2026-10-22): tra cứu (booking_code, contact_phone) cấp token
+//  MỚI — ghi đè guest_token_hash, token cũ hết hiệu lực. "Gắn vé vào tài
+//  khoản" cũng chứng minh bằng mã + SĐT, rồi đặt user_id và guest_token_hash =
+//  NULL để giữ đúng ck_bookings_owner.
+//
+//  LƯU Ý khi nâng cấp DB đang có dữ liệu: ddl-auto=update KHÔNG bỏ được NOT
+//  NULL của user_id và không sinh mã cho đơn cũ. Phải chạy
+//  03_booking_db.sql một lần trước khi bật luồng đặt vé cho guest.
+
+// ---------------------------------------------------------------- B9
+//  Ảnh, tiện ích, chính sách, quy tắc hoàn tiền gắn theo NHÀ XE (mục 7).
+//  Gắn theo chuyến thì Admin phải nhập lại cho từng chuyến (seed có 225).
+//  Văn bản chính sách (company_policies) chỉ để đọc; số % hoàn mà hệ thống tự
+//  tính nằm riêng ở cancellation_rules để không phải parse văn bản.
+//
+//  promotions.used_count chỉ tăng khi đơn chuyển PAID, có khoá dòng — tăng
+//  lúc giữ ghế thì đơn hết hạn sẽ ăn mất lượt. bookings chốt subtotal_price,
+//  discount_amount lúc đặt, cùng lý do booking_details.price.
+
+// ---------------------------------------------------------------- B10
+//  reviews gắn booking_id (UNIQUE) để kiểm chứng "đã đi" và mỗi đơn một đánh
+//  giá; company_id chép từ chuyến để Trang chi tiết tính điểm theo NHÀ XE —
+//  tính theo chuyến thì mỗi chuyến gần như chỉ có 0-1 đánh giá. Đánh giá seed
+//  cũ không có đơn nên hai cột này cho phép NULL. is_hidden = TRUE thì không
+//  hiển thị và không tính vào điểm (ReviewRepository đã lọc).
+//
+//  Cột boolean/tiền thêm sau (routes.is_featured, reviews.is_hidden,
+//  bookings.discount_amount, bookings.booking_code) ở entity để NULL được, DB
+//  mới đặt NOT NULL sau khi vá dữ liệu cũ: ddl-auto=update không thêm được
+//  cột NOT NULL vào bảng đã có dòng. Ràng buộc UNIQUE ở entity khai bằng
+//  @UniqueConstraint có tên trùng với SQL, nếu không Hibernate tự đặt tên
+//  ngẫu nhiên và chạy SQL sau sẽ ra hai index trùng nhau.
 
 // ==========================================
 // C. LỘ TRÌNH ĐÃ CHỐT
@@ -382,13 +512,13 @@ Table booking_db_placeholder {
 //    KHÔNG bằng UNIQUE (ràng buộc trải qua bookings + booking_details).
 //    Ghế HOLDING quá hạn được giành lại ngay ở luồng giữ, job chỉ là lưới an toàn.
 //
-//  Giai đoạn 3 — Đánh giá ghi, quản trị, thống kê
-//    Viết đánh giá (nửa đọc đã có ở bước 7), Trang Quản lý Đơn hàng, Dashboard
-//    thống kê. Cần dữ liệu đơn hàng thật nên phải sau giai đoạn 2.
+//  Schema mở rộng (mục 7, B8–B10)                    [XONG 2026-10-19]
+//    Khách vãng lai, nội dung nhà xe, khuyến mãi, đánh giá gắn đơn, hoàn tiền.
+//    Entity + repository + SQL đã có; CHƯA có API và seed.
 //
-//  Việc CHƯA có owner rõ ràng, cần nhóm bàn:
-//    - payment-service: ĐÃ dựng (8084) với Stripe Checkout + webhook. Không có
-//      database riêng: ghi bảng payments qua API nội bộ của booking-service.
-//    - Các bảng trong db.md mà requirement.md chưa giao ai: hình ảnh chuyến,
-//      chính sách, tiện ích (những tab của Trang chi tiết). Hiện db.md chưa
-//      có bảng nào cho chúng — nếu TV2 làm tab này thì cần chốt bảng trước.
+//  Giai đoạn 3 trở đi (đánh giá ghi, hoàn tất chuyến, dashboard, nội dung,
+//  khuyến mãi, khách vãng lai): lộ trình, người phụ trách và quyết định đã
+//  chốt nằm ở PROJECT_STATUS.md — KHÔNG ghi lại ở đây để khỏi lệch nhau.
+//
+//  payment-service: ĐÃ dựng (8084) với Stripe Checkout + webhook. Không có
+//  database riêng: ghi bảng payments qua API nội bộ của booking-service.

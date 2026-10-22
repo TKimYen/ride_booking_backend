@@ -48,7 +48,7 @@ class PaymentServiceTest {
     @Test
     @DisplayName("Không cho thanh toán đơn của người khác")
     void rejectsBookingOfAnotherUser() {
-        when(bookingClient.getForPayment(1)).thenReturn(booking(1, 999, "PENDING", true));
+        when(bookingClient.getForPayment(1, null)).thenReturn(booking(1, 999, "PENDING", true));
 
         assertThatThrownBy(() -> paymentService.createCheckoutSession(1, user(1)))
                 .isInstanceOf(AccessDeniedException.class);
@@ -58,7 +58,7 @@ class PaymentServiceTest {
     @Test
     @DisplayName("Đơn hết hạn giữ ghế thì không mở phiên thanh toán")
     void rejectsNotPayableBooking() {
-        when(bookingClient.getForPayment(1)).thenReturn(booking(1, 1, "PENDING", false));
+        when(bookingClient.getForPayment(1, null)).thenReturn(booking(1, 1, "PENDING", false));
 
         assertThatThrownBy(() -> paymentService.createCheckoutSession(1, user(1)))
                 .isInstanceOf(ConflictException.class)
@@ -68,7 +68,7 @@ class PaymentServiceTest {
     @Test
     @DisplayName("Đơn đã PAID thì báo đã thanh toán, không tạo phiên mới")
     void rejectsAlreadyPaidBooking() {
-        when(bookingClient.getForPayment(1)).thenReturn(booking(1, 1, "PAID", false));
+        when(bookingClient.getForPayment(1, null)).thenReturn(booking(1, 1, "PAID", false));
 
         assertThatThrownBy(() -> paymentService.createCheckoutSession(1, user(1)))
                 .isInstanceOf(ConflictException.class)
@@ -78,7 +78,7 @@ class PaymentServiceTest {
     @Test
     @DisplayName("Đơn hợp lệ trả URL Stripe, số tiền lấy từ booking-service")
     void createsCheckoutSessionForOwnBooking() {
-        when(bookingClient.getForPayment(1)).thenReturn(booking(1, 1, "PENDING", true));
+        when(bookingClient.getForPayment(1, null)).thenReturn(booking(1, 1, "PENDING", true));
         Session session = new Session();
         session.setId("cs_test_1");
         session.setUrl("https://checkout.stripe.com/c/pay/cs_test_1");
@@ -90,6 +90,30 @@ class PaymentServiceTest {
         assertThat(response.checkoutUrl()).isEqualTo("https://checkout.stripe.com/c/pay/cs_test_1");
         assertThat(response.amount()).isEqualByComparingTo("500000");
         assertThat(response.currency()).isEqualTo("VND");
+    }
+
+    @Test
+    @DisplayName("Khách vãng lai có token đúng thì mở được phiên thanh toán, không cần JWT")
+    void createsCheckoutSessionForGuestWithValidToken() {
+        when(bookingClient.getForPayment(2, "guest-token")).thenReturn(booking(2, null, "PENDING", true, true));
+        Session session = new Session();
+        session.setId("cs_test_guest");
+        session.setUrl("https://checkout.stripe.com/c/pay/cs_test_guest");
+        when(stripeService.createCheckoutSession(eq(2), eq(null), eq(500_000L))).thenReturn(session);
+
+        CheckoutSessionResponse response = paymentService.createCheckoutSession(2, null, "guest-token");
+
+        assertThat(response.sessionId()).isEqualTo("cs_test_guest");
+    }
+
+    @Test
+    @DisplayName("Khách vãng lai gửi token sai thì bị từ chối")
+    void rejectsGuestWithWrongToken() {
+        when(bookingClient.getForPayment(2, "wrong")).thenReturn(booking(2, null, "PENDING", true, false));
+
+        assertThatThrownBy(() -> paymentService.createCheckoutSession(2, null, "wrong"))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(stripeService, never()).createCheckoutSession(any(), any(), anyLong());
     }
 
     @Test
@@ -164,9 +188,13 @@ class PaymentServiceTest {
         return deserializer;
     }
 
-    private BookingPaymentView booking(int id, int userId, String status, boolean payable) {
+    private BookingPaymentView booking(int id, Integer userId, String status, boolean payable) {
+        return booking(id, userId, status, payable, false);
+    }
+
+    private BookingPaymentView booking(int id, Integer userId, String status, boolean payable, boolean guestAccess) {
         return new BookingPaymentView(id, userId, new BigDecimal("500000"), "VND", status,
-                LocalDateTime.now().plusMinutes(5), payable);
+                LocalDateTime.now().plusMinutes(5), payable, guestAccess);
     }
 
     private AuthenticatedUser user(int id) {

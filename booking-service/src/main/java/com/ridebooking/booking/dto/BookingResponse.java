@@ -1,5 +1,6 @@
 package com.ridebooking.booking.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.ridebooking.booking.entity.Booking;
 import com.ridebooking.booking.entity.BookingDetail;
 import com.ridebooking.booking.entity.Payment;
@@ -15,7 +16,10 @@ import java.util.List;
 public record BookingResponse(
 
         @Schema(example = "12") Integer id,
-        @Schema(example = "7") Integer userId,
+        @Schema(description = "Mã vé hiển thị cho khách, dùng để tra cứu và sinh QR", example = "K7M2Q9XA")
+        String bookingCode,
+        @Schema(description = "null = đơn của khách vãng lai", example = "7") Integer userId,
+        @Schema(description = "true nếu đơn đặt không cần tài khoản") boolean guest,
         BookingTripResponse trip,
         @Schema(description = "Điểm đón đã chọn; null nếu không chọn") StopPointResponse pickupPoint,
         @Schema(description = "Điểm trả đã chọn; null nếu không chọn") StopPointResponse dropoffPoint,
@@ -31,7 +35,13 @@ public record BookingResponse(
         @Schema(description = "Số giây còn lại để thanh toán; null khi đơn không ở PENDING", example = "412")
         Long holdSecondsRemaining,
         List<BookingSeatResponse> seats,
-        @Schema(description = "Giao dịch thành công gần nhất; null khi chưa thanh toán") PaymentResponse payment) {
+        @Schema(description = "Giao dịch thành công gần nhất; null khi chưa thanh toán") PaymentResponse payment,
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        @Schema(description = """
+                Chỉ có khi khách vãng lai vừa tạo đơn hoặc vừa tra cứu vé. Gửi lại trong header
+                `X-Guest-Token` để xem/thanh toán/huỷ đơn. Server không lưu bản gốc nên không lấy lại được.
+                """)
+        String guestToken) {
 
     public static BookingResponse from(Booking booking, List<BookingDetail> seats, Payment payment,
             LocalDateTime now) {
@@ -41,7 +51,9 @@ public record BookingResponse(
         }
         return new BookingResponse(
                 booking.getId(),
+                booking.getBookingCode(),
                 booking.getUserId(),
+                booking.isGuest(),
                 BookingTripResponse.from(booking.getTrip()),
                 booking.getPickupPoint() == null ? null : StopPointResponse.from(booking.getPickupPoint()),
                 booking.getDropoffPoint() == null ? null : StopPointResponse.from(booking.getDropoffPoint()),
@@ -54,6 +66,14 @@ public record BookingResponse(
                 booking.getExpiresAt(),
                 holdSeconds,
                 seats.stream().map(BookingSeatResponse::from).toList(),
-                payment == null ? null : PaymentResponse.from(payment));
+                payment == null ? null : PaymentResponse.from(payment),
+                null);
+    }
+
+    /** Bản sao kèm token gốc của khách vãng lai — chỉ dùng ngay lúc cấp token. */
+    public BookingResponse withGuestToken(String token) {
+        return new BookingResponse(id, bookingCode, userId, guest, trip, pickupPoint, dropoffPoint,
+                contactName, contactPhone, contactEmail, totalPrice, status, createdAt, expiresAt,
+                holdSecondsRemaining, seats, payment, token);
     }
 }

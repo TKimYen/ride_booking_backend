@@ -49,7 +49,10 @@ public class InternalBookingController {
     }
 
     @Operation(summary = "Lấy đơn để tạo phiên thanh toán",
-            description = "payment-service dùng số tiền/trạng thái/hạn giữ ghế để dựng Stripe Checkout Session.")
+            description = """
+                    payment-service dùng số tiền/trạng thái/hạn giữ ghế để dựng Stripe Checkout Session.
+                    Chuyển tiếp `X-Guest-Token` của khách vãng lai thì `guestAccess` cho biết token có khớp đơn không.
+                    """)
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Thành công"),
             @ApiResponse(responseCode = "403", description = "Thiếu hoặc sai X-Internal-Key"),
@@ -57,9 +60,10 @@ public class InternalBookingController {
     @GetMapping("/{bookingId}")
     public ResponseEntity<InternalBookingResponse> getForPayment(
             @RequestHeader(value = "X-Internal-Key", required = false) String key,
+            @RequestHeader(value = "X-Guest-Token", required = false) String guestToken,
             @PathVariable Integer bookingId) {
         requireKey(key);
-        return ResponseEntity.ok(bookingService.getForPayment(bookingId));
+        return ResponseEntity.ok(bookingService.getForPayment(bookingId, guestToken));
     }
 
     @Operation(summary = "Xác nhận đã thu tiền (idempotent)",

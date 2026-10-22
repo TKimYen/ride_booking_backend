@@ -5,9 +5,14 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /** Bảng {@code bus_companies} — nhà xe, dùng cho bộ lọc "theo nhà xe". */
 @Entity
@@ -29,6 +34,16 @@ public class BusCompany {
 
 	@Column(name = "created_at", nullable = false)
 	private LocalDateTime createdAt;
+
+	/**
+	 * Tiện ích của nhà xe (tab Tiện ích). LAZY: danh sách nhà xe ở bộ lọc không
+	 * cần tiện ích, chỉ Trang chi tiết mới nạp.
+	 */
+	@ManyToMany
+	@JoinTable(name = "company_amenities",
+			joinColumns = @JoinColumn(name = "company_id"),
+			inverseJoinColumns = @JoinColumn(name = "amenity_id"))
+	private Set<Amenity> amenities = new LinkedHashSet<>();
 
 	@PrePersist
 	void onCreate() {
@@ -75,5 +90,13 @@ public class BusCompany {
 
 	public void setCreatedAt(LocalDateTime createdAt) {
 		this.createdAt = createdAt;
+	}
+
+	public Set<Amenity> getAmenities() {
+		return amenities;
+	}
+
+	public void setAmenities(Set<Amenity> amenities) {
+		this.amenities = amenities;
 	}
 }

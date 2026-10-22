@@ -26,7 +26,6 @@ x-common-env: &common-env
   APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:5173}
 
 services:
-
   # ---------------------------------------------------------------- databases
   auth-db:
     image: postgres:17-alpine
@@ -59,8 +58,8 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
     ports:
-      - "127.0.0.1:8025:8025"   # giao diện web xem mail, chỉ localhost
-      - "127.0.0.1:1025:1025"   # SMTP của mailpit — mở ra LAN là relay mail trần   # cổng SMTP
+      - "127.0.0.1:8025:8025" # giao diện web xem mail, chỉ localhost
+      - "127.0.0.1:1025:1025" # SMTP của mailpit — mở ra LAN là relay mail trần   # cổng SMTP
     restart: unless-stopped
 
   user-db:
@@ -115,10 +114,14 @@ services:
     environment:
       SERVER_PORT: 8761
     ports:
-      - "127.0.0.1:8761:8761"   # Eureka — không bao giờ expose ra ngoài
+      - "127.0.0.1:8761:8761" # Eureka — không bao giờ expose ra ngoài
     healthcheck:
       # Eureka không có actuator mặc định, kiểm tra bằng cách gọi registry
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8761/eureka/apps || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://localhost:8761/eureka/apps || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -200,9 +203,13 @@ services:
       mailpit:
         condition: service_started
     ports:
-      - "127.0.0.1:8081:8081"   # chỉ localhost — production chỉ nên vào qua gateway
+      - "127.0.0.1:8081:8081" # chỉ localhost — production chỉ nên vào qua gateway
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://localhost:8081/actuator/health || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -232,9 +239,13 @@ services:
       user-db:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8082:8082"   # chỉ localhost — user-service là API nội bộ
+      - "127.0.0.1:8082:8082" # chỉ localhost — user-service là API nội bộ
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8082/actuator/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://localhost:8082/actuator/health || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -271,9 +282,13 @@ services:
       user-service:
         condition: service_started
     ports:
-      - "127.0.0.1:8083:8083"   # chỉ localhost — production chỉ nên vào qua gateway
+      - "127.0.0.1:8083:8083" # chỉ localhost — production chỉ nên vào qua gateway
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8083/actuator/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://localhost:8083/actuator/health || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -307,9 +322,13 @@ services:
       booking-service:
         condition: service_started
     ports:
-      - "127.0.0.1:8084:8084"   # chỉ localhost — production chỉ nên vào qua gateway
+      - "127.0.0.1:8084:8084" # chỉ localhost — production chỉ nên vào qua gateway
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8084/actuator/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://localhost:8084/actuator/health || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -331,7 +350,7 @@ services:
         ipv4_address: ${GATEWAY_IP:-172.28.0.10}
     environment:
       EUREKA_URL: http://discovery-server:8761/eureka
-      SERVER_PORT: 8080
+      SERVER_PORT: 8088
       # Trong Docker network phải dùng tên service, không dùng localhost
       AUTH_SERVICE_URI: http://auth-service:8081
       USER_SERVICE_URI: http://user-service:8082
@@ -348,7 +367,8 @@ services:
       discovery-server:
         condition: service_started
     ports:
-      - "8088:8080"
+      # Gateway nghe 8088 (không dùng 8080); đổi cổng trên máy bằng GATEWAY_PORT trong .env
+      - "${GATEWAY_PORT:-8088}:8088"
     restart: unless-stopped
 
 volumes:
@@ -358,7 +378,7 @@ volumes:
 
 networks:
   default:
-    driver: bridge   # driver BRIDGE cua Docker, khong phai driver-service
+    driver: bridge # driver BRIDGE cua Docker, khong phai driver-service
     ipam:
       config:
         # Subnet gan tinh: subnet Docker mac dinh co thay doi giua may, lam

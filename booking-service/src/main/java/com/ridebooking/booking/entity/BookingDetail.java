@@ -40,6 +40,13 @@ public class BookingDetail {
 	@Column(name = "price", nullable = false, precision = 12, scale = 2)
 	private BigDecimal price;
 
+	/** Tên hành khách ngồi ghế này; NULL thì dùng {@code contactName} của đơn. */
+	@Column(name = "passenger_name", length = 255)
+	private String passengerName;
+
+	@Column(name = "passenger_phone", length = 20)
+	private String passengerPhone;
+
 	public BookingDetail() {
 	}
 
@@ -79,5 +86,21 @@ public class BookingDetail {
 
 	public void setPrice(BigDecimal price) {
 		this.price = price;
+	}
+
+	public String getPassengerName() {
+		return passengerName;
+	}
+
+	public void setPassengerName(String passengerName) {
+		this.passengerName = passengerName;
+	}
+
+	public String getPassengerPhone() {
+		return passengerPhone;
+	}
+
+	public void setPassengerPhone(String passengerPhone) {
+		this.passengerPhone = passengerPhone;
 	}
 }

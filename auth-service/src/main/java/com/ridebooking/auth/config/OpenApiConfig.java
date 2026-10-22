@@ -21,7 +21,7 @@ import org.springframework.context.annotation.Configuration;
  * JSON: http://localhost:8081/v3/api-docs
  *
  * <p>Để test qua api-gateway thì bấm "Try it out" và đổi server sang
- * http://localhost:8080 (xem phần {@code servers}).
+ * http://localhost:8088 (xem phần {@code servers}).
  */
 @Configuration
 public class OpenApiConfig {
@@ -49,7 +49,7 @@ public class OpenApiConfig {
                         .license(new License().name("MIT")))
                 .servers(List.of(
                         new Server().url("http://localhost:8081").description("Gọi trực tiếp auth-service"),
-                        new Server().url("http://localhost:8080").description("Qua api-gateway (khuyến nghị)")))
+                        new Server().url("http://localhost:8088").description("Qua api-gateway (khuyến nghị)")))
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
                 .components(new Components()
                         .addSecuritySchemes(securitySchemeName,

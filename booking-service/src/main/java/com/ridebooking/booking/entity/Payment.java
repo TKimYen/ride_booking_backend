@@ -60,6 +60,13 @@ public class Payment {
 	@Column(name = "status", nullable = false, length = 20)
 	private PaymentStatus status = PaymentStatus.PENDING;
 
+	/** Số tiền đã hoàn; chỉ có khi status = REFUNDED. Không vượt quá amount (CHECK ở DB). */
+	@Column(name = "refund_amount", precision = 12, scale = 2)
+	private BigDecimal refundAmount;
+
+	@Column(name = "refunded_at")
+	private LocalDateTime refundedAt;
+
 	@Column(name = "created_at", nullable = false)
 	private LocalDateTime createdAt;
 
@@ -143,5 +150,21 @@ public class Payment {
 
 	public void setCreatedAt(LocalDateTime createdAt) {
 		this.createdAt = createdAt;
+	}
+
+	public BigDecimal getRefundAmount() {
+		return refundAmount;
+	}
+
+	public void setRefundAmount(BigDecimal refundAmount) {
+		this.refundAmount = refundAmount;
+	}
+
+	public LocalDateTime getRefundedAt() {
+		return refundedAt;
+	}
+
+	public void setRefundedAt(LocalDateTime refundedAt) {
+		this.refundedAt = refundedAt;
 	}
 }

@@ -40,6 +40,11 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
 	/** Kiểm tra quyền sở hữu khi xem chi tiết đơn. */
 	Optional<Booking> findByIdAndUserId(Integer id, Integer userId);
 
+	/** Trang Tra cứu vé của khách vãng lai: mã vé + SĐT, khớp index ix_bookings_code_phone. */
+	Optional<Booking> findByBookingCodeAndContactPhone(String bookingCode, String contactPhone);
+
+	boolean existsByBookingCode(String bookingCode);
+
 	/**
 	 * Đánh dấu mọi đơn PENDING đã quá hạn thành EXPIRED trong một câu UPDATE.
 	 *

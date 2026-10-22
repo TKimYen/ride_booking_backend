@@ -12,7 +12,7 @@ booking-service nằm ở mục 11.
 | Service | Port | Vai trò | Package gốc |
 |---|---|---|---|
 | `discovery-server` | 8761 | Eureka Server | `com.ridebooking.discovery_server` |
-| `api-gateway` | 8080 | Điểm vào duy nhất của frontend | `com.ridebooking.gateway` |
+| `api-gateway` | 8088 | Điểm vào duy nhất của frontend | `com.ridebooking.gateway` |
 | `auth-service` | 8081 | Đăng ký / đăng nhập / cấp JWT / đổi mật khẩu | `com.ridebooking.auth` |
 | `user-service` | 8082 | Hồ sơ cá nhân, danh sách người dùng cho Admin | `com.ridebooking.user` |
 | `booking-service` | 8083 | Catalog (địa điểm, nhà xe, tuyến, chuyến, điểm dừng, ghế) + đơn đặt vé + đánh giá | `com.ridebooking.booking` |
@@ -23,7 +23,7 @@ booking-service nằm ở mục 11.
 | `user-db` | 5434 | `user_db` — bảng `user_profiles` (hồ sơ) |
 | `booking-db` | 5435 | `booking_db` — catalog, ghế, đơn vé, đánh giá (xem [db.md](db.md) mục B) |
 
-> Frontend chỉ cần gọi `http://localhost:8080/api/...`, không gọi thẳng 8081/8082.
+> Frontend chỉ cần gọi `http://localhost:8088/api/...`, không gọi thẳng 8081/8082.
 > `auth-service` và `user-service` dùng **2 database tách biệt**, không chung bảng.
 > Xem [db.md](db.md) và mục 10.
 
@@ -31,27 +31,27 @@ booking-service nằm ở mục 11.
 
 | Tài liệu | Link |
 |---|---|
-| **Swagger UI gộp (gateway)** | http://localhost:8080/swagger-ui/index.html |
+| **Swagger UI gộp (gateway)** | http://localhost:8088/swagger-ui/index.html |
 | auth-service Swagger UI (riêng) | http://localhost:8081/swagger-ui/index.html |
 | user-service Swagger UI (riêng) | http://localhost:8082/swagger-ui/index.html |
 | booking-service Swagger UI (riêng) | http://localhost:8083/swagger-ui/index.html |
 | auth-service OpenAPI JSON | http://localhost:8081/v3/api-docs |
 | user-service OpenAPI JSON | http://localhost:8082/v3/api-docs |
 | booking-service OpenAPI JSON | http://localhost:8083/v3/api-docs |
-| auth-service JSON **qua gateway** | http://localhost:8080/auth/v3/api-docs |
-| user-service JSON **qua gateway** | http://localhost:8080/user/v3/api-docs |
-| booking-service JSON **qua gateway** | http://localhost:8080/booking/v3/api-docs |
+| auth-service JSON **qua gateway** | http://localhost:8088/auth/v3/api-docs |
+| user-service JSON **qua gateway** | http://localhost:8088/user/v3/api-docs |
+| booking-service JSON **qua gateway** | http://localhost:8088/booking/v3/api-docs |
 | Eureka dashboard | http://localhost:8761 |
 
-Ở `http://localhost:8080/swagger-ui/index.html` có dropdown chọn tài liệu
+Ở `http://localhost:8088/swagger-ui/index.html` có dropdown chọn tài liệu
 (`auth-service` / `user-service` / `booking-service`) — mở một chỗ là xem đủ cả ba,
 không cần nhớ ba cổng. Tổng cộng **64 operation** (auth 16, user 7, booking 41).
 
 Cách dùng nhanh:
 
-1. Mở Swagger UI (gộp ở 8080, hoặc mở riêng 8081/8082 nếu muốn).
+1. Mở Swagger UI (gộp ở 8088, hoặc mở riêng 8081/8082 nếu muốn).
 2. Bấm **Authorize** → dán `accessToken` lấy từ `POST /api/auth/login`.
-3. Bấm **Try it out** rồi **Execute**. Trong dropdown server chọn `http://localhost:8080`
+3. Bấm **Try it out** rồi **Execute**. Trong dropdown server chọn `http://localhost:8088`
    để test qua gateway (đúng như cách frontend gọi thật), hoặc `http://localhost:8081`
    nếu muốn gọi thẳng service.
 
@@ -186,7 +186,7 @@ proxy đó.
 
 Trong `docker-compose.yml`, các cổng `8081` (auth), `8082` (user), `5433`/`5434`
 (database), `8761` (Eureka) và `8025` (Mailpit) đều bind vào `127.0.0.1`, tức chỉ
-truy cập được từ chính máy chạy Docker — cổng `8080` của gateway là cổng public
+truy cập được từ chính máy chạy Docker — cổng `8088` của gateway là cổng public
 duy nhất. Khi deploy thật:
 
 - bỏ hẳn `ports` của auth/user/database thay vì chỉ đổi sang `127.0.0.1`, và
@@ -346,7 +346,7 @@ của cả hai service, sai thì trả `403`. Không có endpoint này dành cho
 ### Đăng ký
 
 ```bash
-curl -X POST http://localhost:8080/api/auth/register \
+curl -X POST http://localhost:8088/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "fullName": "Nguyễn Anh Huy",
@@ -382,7 +382,7 @@ curl -X POST http://localhost:8080/api/auth/register \
 ### Đăng nhập
 
 ```bash
-curl -X POST http://localhost:8080/api/auth/login \
+curl -X POST http://localhost:8088/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"huy@test.com","password":"Huy@2002x"}'
 ```
@@ -390,7 +390,7 @@ curl -X POST http://localhost:8080/api/auth/login \
 ### Đổi token khi access token hết hạn
 
 ```bash
-curl -X POST http://localhost:8080/api/auth/refresh \
+curl -X POST http://localhost:8088/api/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{"refreshToken":"0kVvH8x...abc"}'
 ```
@@ -402,13 +402,13 @@ Dùng lại refreshToken cũ sẽ nhận `401` và mọi phiên của tài kho�
 
 ```bash
 # Huỷ đúng phiên này
-curl -X POST http://localhost:8080/api/auth/logout \
+curl -X POST http://localhost:8088/api/auth/logout \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"refreshToken":"0kVvH8x...abc"}'
 
 # Huỷ tất cả thiết bị
-curl -X POST http://localhost:8080/api/auth/logout \
+curl -X POST http://localhost:8088/api/auth/logout \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"refreshToken":""}'
@@ -418,18 +418,18 @@ curl -X POST http://localhost:8080/api/auth/logout \
 
 ```bash
 # Chính mình hoặc admin: đầy đủ
-curl http://localhost:8080/api/users/5 -H "Authorization: Bearer $TOKEN"
+curl http://localhost:8088/api/users/5 -H "Authorization: Bearer $TOKEN"
 # -> {"email":"huy@test.com","phone":"0912345678","dob":"2002-05-20","masked":false}
 
 # User thường xem người khác: đã che
-curl http://localhost:8080/api/users/5 -H "Authorization: Bearer $KHAC_TOKEN"
+curl http://localhost:8088/api/users/5 -H "Authorization: Bearer $KHAC_TOKEN"
 # -> {"email":"h***@test.com","phone":null,"dob":null,"gender":null,"masked":true}
 ```
 
 ### Cập nhật hồ sơ
 
 ```bash
-curl -X PUT http://localhost:8080/api/users/me \
+curl -X PUT http://localhost:8088/api/users/me \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"fullName":"Nguyễn Anh Huy","phone":"0999888777","dob":"2002-06-01","gender":"Nam"}'
@@ -517,9 +517,9 @@ Sau khi `up`, kiểm tra:
 
 | Kiểm tra | Link |
 |---|---|
-| Gateway | http://localhost:8080 |
+| Gateway | http://localhost:8088 |
 | Eureka | http://localhost:8761 |
-| **Swagger gộp** | http://localhost:8080/swagger-ui/index.html |
+| **Swagger gộp** | http://localhost:8088/swagger-ui/index.html |
 | Swagger auth (riêng) | http://localhost:8081/swagger-ui/index.html |
 | Swagger user (riêng) | http://localhost:8082/swagger-ui/index.html |
 
@@ -783,7 +783,9 @@ Service lớn nhất hệ thống: vừa giữ catalog vừa giữ đơn đặt 
 Quyền:
 
 - `GET /api/{locations,routes,bus-companies,trips,seats,stop-points,reviews}` — công khai.
-- `ALL /api/bookings/**` — cần JWT (bất kỳ role nào đã đăng nhập). Người dùng lấy từ token, **không** từ tham số.
+- `POST /api/bookings`, `POST /api/bookings/lookup` — công khai (có JWT thì đơn thuộc tài khoản, không có là đơn khách vãng lai).
+- `GET /api/bookings/{id}`, `POST /api/bookings/{id}/pay`, `POST /api/bookings/{id}/cancel` — JWT **hoặc** header `X-Guest-Token`; thiếu cả hai → 401.
+- `GET /api/bookings`, `POST /api/bookings/claim` — cần JWT. Người dùng lấy từ token, **không** từ tham số.
 - `ALL /api/admin/**` — cần JWT với role `ADMIN`.
 
 ### 11.1. Địa điểm, nhà xe, tuyến
@@ -827,7 +829,7 @@ rồi ghép trong bộ nhớ.
 | Method + Path | Việc |
 |---|---|
 | `GET /api/trips/{id}` | Chi tiết chuyến (Trang Thông tin chi tiết) |
-| `GET /api/trips/bus-types` | 5 loại xe: `code`, `name`, `seatCount`, `floors` |
+| `GET /api/trips/bus-types` | 3 loại xe (`LIMOUSINE_29`, `CABIN_DOUBLE_22`, `SLEEPER_45`): `code`, `name`, `seatCount`, `floors` |
 
 ### 11.3. Sơ đồ ghế (Thành viên 3)
 
@@ -885,26 +887,39 @@ còn vé đã bán cũng trả `409`.
 
 ### 11.7. Đặt vé, giữ ghế, thanh toán (Giai đoạn 2)
 
-Cần JWT. Toàn bộ endpoint `/api/bookings/**` lấy `userId` từ token.
+Đơn có hai kiểu chủ: **tài khoản** (`userId` lấy từ JWT) hoặc **khách vãng lai**
+(`userId = null`, quyền chứng minh bằng header `X-Guest-Token`).
 
-| Method + Path | Việc |
-|---|---|
-| `POST /api/bookings` | Giữ ghế + tạo đơn `PENDING` |
-| `GET /api/bookings` | "Đơn hàng của tôi", lọc `status`, phân trang |
-| `GET /api/bookings/{id}` | Chi tiết đơn (chỉ chủ đơn hoặc Admin) |
-| `POST /api/bookings/{id}/pay` | Thanh toán: ghế `HOLDING` → `BOOKED`, đơn → `PAID` |
-| `POST /api/bookings/{id}/cancel` | Huỷ đơn chưa thanh toán: trả ghế, đơn → `CANCELLED` |
-| `GET /api/admin/bookings` | Admin: danh sách đơn/hành khách theo `tripId`, `status` |
+| Method + Path | Quyền | Việc |
+|---|---|---|
+| `POST /api/bookings` | Công khai | Giữ ghế + tạo đơn `PENDING`. Không JWT = đơn khách vãng lai |
+| `GET /api/bookings` | JWT | "Đơn hàng của tôi", lọc `status` (nhiều giá trị, `?status=PENDING,PAID`), phân trang |
+| `GET /api/bookings/{id}` | JWT hoặc `X-Guest-Token` | Chi tiết đơn (chủ đơn, Admin, hoặc token khách đúng) |
+| `POST /api/bookings/{id}/pay` | JWT hoặc `X-Guest-Token` | Thanh toán demo: ghế `HOLDING` → `BOOKED`, đơn → `PAID` |
+| `POST /api/bookings/{id}/cancel` | JWT hoặc `X-Guest-Token` | Huỷ đơn chưa thanh toán: trả ghế, đơn → `CANCELLED` |
+| `POST /api/bookings/lookup` | Công khai | Tra cứu vé `{bookingCode, phone}`; đơn khách vãng lai trả kèm `guestToken` **mới** |
+| `POST /api/bookings/claim` | JWT | Gắn vé đặt lúc chưa đăng nhập vào tài khoản `{bookingCode, phone}` |
+| `GET /api/admin/bookings` | ADMIN | Danh sách đơn/hành khách theo `tripId`, `status` |
 
 `POST /api/bookings` body (`HoldSeatsRequest`): `tripId`, `seatIds` (1..10 id ghế),
-`pickupPointId?`, `dropoffPointId?`, `contactName`, `contactPhone`, `contactEmail?`.
+`pickupPointId?`, `dropoffPointId?`, `contactName`, `contactPhone`, `contactEmail`.
 `seatIds` được gửi theo **id** (không theo tên), vì tên ghế đổi khi Admin đổi loại xe.
-Thiếu email thì lấy từ token.
+Có JWT mà thiếu email thì lấy từ token; **khách vãng lai bắt buộc email** (thiếu → 400).
 
-Trả về `BookingResponse`: `id`, `userId`, `trip` (tóm tắt chuyến), `pickupPoint`,
+Trả về `BookingResponse`: `id`, `bookingCode` (mã vé 8 ký tự, dùng tra cứu và sinh QR),
+`userId` (null với khách vãng lai), `guest`, `trip` (tóm tắt chuyến), `pickupPoint`,
 `dropoffPoint`, thông tin liên hệ, `totalPrice`, `status`, `createdAt`, `expiresAt`,
 `holdSecondsRemaining`, `seats[]` (giá chốt lúc mua), `payment` (giao dịch thành
-công gần nhất, có thể null).
+công gần nhất, có thể null), `guestToken` (chỉ có ở response tạo đơn khách vãng lai
+và tra cứu vé — không có ở các response khác).
+
+**Khách vãng lai.** Token 256-bit chỉ trả **một lần**; DB chỉ lưu SHA-256
+(`bookings.guest_token_hash`), so sánh hằng thời gian. FE giữ token trong
+`sessionStorage` và gửi header `X-Guest-Token`. Mất token thì tra cứu lại bằng mã vé +
+SĐT: hệ thống cấp token mới, token cũ hết hiệu lực. Token khách không mở được đơn
+của tài khoản. `claim` gán `userId` và xoá token (CHECK `ck_bookings_owner`: đơn chỉ
+có một kiểu chủ); vé đã thuộc tài khoản khác → 409. Tra cứu sai mã hoặc sai SĐT đều
+trả cùng một 404, không cho biết mã có tồn tại.
 
 **Vòng đời trạng thái.** `PENDING` → `PAID` (thanh toán) hoặc `CANCELLED` (khách huỷ)
 hoặc `EXPIRED` (quá hạn). `COMPLETED` dành cho chuyến đã chạy. Gợi ý tab "Đơn hàng
@@ -946,12 +961,14 @@ trong cùng một transaction, không cần distributed lock.
 
 | Method + Path | Việc |
 |---|---|
-| `POST /api/payments/checkout-session` | Cần JWT. Tạo Stripe Checkout Session cho một đơn đã giữ ghế, trả `checkoutUrl` |
+| `POST /api/payments/checkout-session` | Cần JWT **hoặc** header `X-Guest-Token` (khách vãng lai). Tạo Stripe Checkout Session cho một đơn đã giữ ghế, trả `checkoutUrl` |
 | `POST /api/payments/webhook` | Stripe gọi vào. Không cần JWT nhưng bắt buộc có chữ ký `Stripe-Signature` hợp lệ |
 
 `POST /api/payments/checkout-session` body `CheckoutSessionRequest`: chỉ `bookingId`.
 **Số tiền KHÔNG nhận từ client** — lấy từ đơn ở booking-service, nếu không kẻ xấu trả
-1.000đ cho đơn 500.000đ. Chỉ chủ đơn (hoặc Admin) được tạo phiên; đơn phải đang
+1.000đ cho đơn 500.000đ. Chỉ chủ đơn, Admin, hoặc khách vãng lai có token đúng được
+tạo phiên (payment-service chuyển tiếp `X-Guest-Token` sang API nội bộ, booking-service
+so token và trả `guestAccess`); đơn phải đang
 `PENDING` và chưa hết hạn giữ ghế, nếu không trả **409**. Trả về `CheckoutSessionResponse`:
 `bookingId`, `sessionId` (`cs_...`), `checkoutUrl`, `amount`, `currency`, `expiresAt`.
 
@@ -970,3 +987,14 @@ Các ca đặc biệt:
 
 API nội bộ `/api/internal/**` **không được route qua gateway** — chỉ service khác gọi
 được bằng `X-Internal-Key`.
+
+### 11.10. Chưa có API (đã có schema)
+
+File này chỉ liệt kê endpoint **đã chạy được**. Các endpoint dự kiến (dashboard
+`/api/admin/stats/*`, ghi đánh giá, profile nhà xe, khuyến mãi...) và thứ tự làm nằm ở
+[PROJECT_STATUS.md](PROJECT_STATUS.md) mục "Lộ trình đề cử"; cách làm ở
+[HUONG_DAN_HOAN_THIEN_BE.md](../HUONG_DAN_HOAN_THIEN_BE.md). Làm xong việc nào thì
+chuyển endpoint đó vào mục 11 ở trên.
+
+DB đã lưu `subtotal_price`, `discount_amount`, `paid_at`, `cancelled_at` cho mỗi đơn
+nhưng `BookingResponse` chưa trả ra — thêm khi làm khuyến mãi (Việc 9).

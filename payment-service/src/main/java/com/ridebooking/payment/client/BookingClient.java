@@ -29,9 +29,22 @@ public class BookingClient {
     }
 
     public BookingPaymentView getForPayment(Integer bookingId) {
+        return getForPayment(bookingId, null);
+    }
+
+    /**
+     * {@code guestToken} (header {@code X-Guest-Token} của khách vãng lai) được chuyển
+     * tiếp nguyên vẹn; booking-service so với hash và trả kết quả ở {@code guestAccess}.
+     */
+    public BookingPaymentView getForPayment(Integer bookingId, String guestToken) {
         try {
             BookingPaymentView view = bookingRestClient.get()
                     .uri("/api/internal/bookings/{bookingId}", bookingId)
+                    .headers(headers -> {
+                        if (guestToken != null && !guestToken.isBlank()) {
+                            headers.set("X-Guest-Token", guestToken);
+                        }
+                    })
                     .retrieve()
                     .body(BookingPaymentView.class);
             if (view == null) {

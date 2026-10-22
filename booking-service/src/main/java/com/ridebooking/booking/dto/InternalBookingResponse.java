@@ -15,6 +15,10 @@ import java.time.LocalDateTime;
  * <p>{@code payable} gộp sẵn điều kiện "đang PENDING và chưa hết hạn" để
  * payment-service khỏi tự suy diễn từ {@code status} + {@code expiresAt} và lệch
  * logic với booking-service.
+ *
+ * <p>{@code guestAccess} = đơn của khách vãng lai VÀ header {@code X-Guest-Token}
+ * payment-service chuyển tiếp khớp hash. booking-service tự so token để hash không
+ * bao giờ rời service.
  */
 public record InternalBookingResponse(
         Integer id,
@@ -23,9 +27,10 @@ public record InternalBookingResponse(
         String currency,
         BookingStatus status,
         LocalDateTime expiresAt,
-        boolean payable) {
+        boolean payable,
+        boolean guestAccess) {
 
-    public static InternalBookingResponse from(Booking booking) {
+    public static InternalBookingResponse from(Booking booking, boolean guestAccess) {
         boolean payable = booking.getStatus() == BookingStatus.PENDING
                 && booking.getExpiresAt() != null
                 && booking.getExpiresAt().isAfter(LocalDateTime.now());
@@ -36,6 +41,7 @@ public record InternalBookingResponse(
                 "VND",
                 booking.getStatus(),
                 booking.getExpiresAt(),
-                payable);
+                payable,
+                guestAccess);
     }
 }
