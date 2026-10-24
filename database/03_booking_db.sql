@@ -18,7 +18,7 @@
 --  File này khai báo TOÀN BỘ schema kể cả bookings / booking_details / payments,
 --  dù Giai đoạn 2 mới viết code cho chúng. Mục đích là khóa schema một lần
 --  (requirement.md mục 2: "Toàn bộ thiết kế Database chung sẽ được chốt trước
---  một lần cho cả nhóm") để Thành viên 3 và Thành viên 4 không phải tự đoán.
+--  một lần cho cả nhóm") để phần đặt vé và quản trị không phải tự đoán.
 --
 --  -----------------------------------------------------------------------------
 --  VỀ CÁCH VIẾT RÀNG BUỘC — ĐỌC TRƯỚC KHI SỬA FILE NÀY
@@ -43,7 +43,7 @@
 -- =============================================================================
 
 -- ------------------------------------------------------------- locations
--- Nguồn cho dropdown "Nơi đi" / "Nơi đến" ở Trang chủ (Thành viên 1).
+-- Nguồn cho dropdown "Nơi đi" / "Nơi đến" ở Trang chủ.
 -- slug dùng để dựng URL thân thiện, name là thứ hiện ra cho người dùng.
 CREATE TABLE IF NOT EXISTS locations (
     id          SERIAL       PRIMARY KEY,
@@ -160,7 +160,7 @@ ALTER TABLE trips ADD  CONSTRAINT ck_trips_time_order
 ALTER TABLE trips DROP CONSTRAINT IF EXISTS ck_trips_price;
 ALTER TABLE trips ADD  CONSTRAINT ck_trips_price CHECK (base_price >= 0);
 
--- Truy vấn chính của Trang Danh sách kết quả (Thành viên 1): lọc theo tuyến
+-- Truy vấn chính của Trang Danh sách kết quả: lọc theo tuyến
 -- rồi sắp xếp theo giờ đi. Index (route_id, departure_time) phục vụ đúng
 -- truy vấn đó, không có thì mỗi lần tìm kiếm đều full scan toàn bộ bảng trips.
 CREATE INDEX IF NOT EXISTS ix_trips_route_departure ON trips (route_id, departure_time);
@@ -374,7 +374,7 @@ CREATE INDEX IF NOT EXISTS ix_promotions_active ON promotions (is_active, starts
 -- =============================================================================
 --  3. GHẾ
 -- =============================================================================
---  Sơ đồ ghế 2 tầng (Thành viên 3). Bảng lớn nhất trong hệ thống: một chuyến
+--  Sơ đồ ghế 2 tầng. Bảng lớn nhất trong hệ thống: một chuyến
 --  29 chỗ cũng đã 29 dòng, chạy cả catalog lẫn lịch sử đều vào đây.
 -- =============================================================================
 
@@ -639,7 +639,7 @@ ALTER TABLE reviews ADD  CONSTRAINT uk_reviews_user_trip UNIQUE (user_id, trip_i
 ALTER TABLE reviews DROP CONSTRAINT IF EXISTS ck_reviews_rating;
 ALTER TABLE reviews ADD  CONSTRAINT ck_reviews_rating CHECK (rating BETWEEN 1 AND 5);
 
--- Trang chi tiết chuyến (Thành viên 2) tính điểm trung bình và đếm bình luận
+-- Trang chi tiết chuyến tính điểm trung bình và đếm bình luận
 -- theo trip_id, chạy mỗi lần mở tab Đánh giá.
 CREATE INDEX IF NOT EXISTS ix_reviews_trip ON reviews (trip_id);
 CREATE INDEX IF NOT EXISTS ix_reviews_user ON reviews (user_id);

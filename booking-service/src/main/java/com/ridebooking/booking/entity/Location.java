@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 
 /**
  * Bảng {@code locations} — tỉnh/thành phố, nguồn cho dropdown "Nơi đi" / "Nơi đến"
- * ở Trang chủ (Thành viên 1).
+ * ở Trang chủ.
  *
  * <p>{@code name} là thứ hiện ra cho người dùng, {@code slug} dùng dựng URL
  * thân thiện nên bắt buộc duy nhất.

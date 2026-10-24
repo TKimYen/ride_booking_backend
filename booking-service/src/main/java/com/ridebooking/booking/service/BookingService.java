@@ -131,6 +131,11 @@ public class BookingService {
         if (trip.getStatus() != TripStatus.ACTIVE) {
             throw new ConflictException("Chuyến xe này không còn nhận đặt vé");
         }
+        // Chuyến đã chạy vẫn ACTIVE cho tới khi job hoàn tất quét tới, nên phải
+        // chặn theo giờ đi chứ không chỉ theo trạng thái.
+        if (!trip.getDepartureTime().isAfter(now)) {
+            throw new ConflictException("Chuyến xe đã khởi hành, không thể đặt vé");
+        }
 
         // distinct + sort: chống gửi trùng ghế và bảo đảm thứ tự khoá ổn định.
         List<Integer> seatIds = request.seatIds().stream()

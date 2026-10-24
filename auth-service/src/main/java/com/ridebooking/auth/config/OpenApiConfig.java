@@ -35,7 +35,7 @@ public class OpenApiConfig {
                         .title("Ride Booking - Auth Service API")
                         .version("v1.0.0")
                         .description("""
-                                Module Tài khoản & Phân quyền (nhóm Thành viên 2).
+                                Module Tài khoản & Phân quyền.
 
                                 **Luồng chính:**
                                 1. `POST /api/auth/register` hoặc `POST /api/auth/login` để lấy `accessToken`
@@ -45,7 +45,7 @@ public class OpenApiConfig {
                                 **Database:** `auth_db` — bảng `users` (email, password BCrypt, role).
                                 Phần hồ sơ cá nhân nằm ở `user_db.user_profiles`, do user-service sở hữu.
                                 """)
-                        .contact(new Contact().name("Thành viên 2 - Module Chi tiết, Đánh giá & Phân quyền"))
+                        .contact(new Contact().name("Nhóm XeGo"))
                         .license(new License().name("MIT")))
                 .servers(List.of(
                         new Server().url("http://localhost:8081").description("Gọi trực tiếp auth-service"),

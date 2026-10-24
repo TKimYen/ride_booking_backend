@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Sơ đồ ghế — cho Trang Chọn chỗ & Thanh toán (Thành viên 3).
+ * Sơ đồ ghế — cho Trang Chọn chỗ & Thanh toán.
  *
  * <p>Giai đoạn 1 mới chỉ ĐỌC. Endpoint giữ ghế (POST) và thanh toán thuộc Giai đoạn 2;
  * xem db.md mục C.

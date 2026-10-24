@@ -1,10 +1,4 @@
 # Ride Booking Microservices — API Auth, User & Booking
-
-Tài liệu cho **Thành viên 2** (luồng Đăng nhập/Đăng ký + phân quyền + Đánh giá),
-**Thành viên 4** (Trang Thông tin tài khoản) và catalog/ghế/điểm dừng
-(**Thành viên 1 và 3**). Các thành viên khác dùng chung cơ chế JWT này. API
-booking-service nằm ở mục 11.
-
 ---
 
 ## 1. Kiến trúc & cổng
@@ -805,7 +799,7 @@ Quyền:
 bỏ trống; đổi tên mà bỏ trống slug thì slug được sinh lại. Slug chỉ gồm chữ thường,
 số và gạch ngang, và **unique**.
 
-### 11.2. Chuyến xe — tìm kiếm và chi tiết (Thành viên 1)
+### 11.2. Chuyến xe — tìm kiếm và chi tiết
 
 `GET /api/trips` — mọi tham số tuỳ chọn:
 
@@ -831,7 +825,7 @@ rồi ghép trong bộ nhớ.
 | `GET /api/trips/{id}` | Chi tiết chuyến (Trang Thông tin chi tiết) |
 | `GET /api/trips/bus-types` | 3 loại xe (`LIMOUSINE_29`, `CABIN_DOUBLE_22`, `SLEEPER_45`): `code`, `name`, `seatCount`, `floors` |
 
-### 11.3. Sơ đồ ghế (Thành viên 3)
+### 11.3. Sơ đồ ghế
 
 | Method + Path | Việc |
 |---|---|
@@ -857,7 +851,7 @@ ghế cột 2 (sát lối đi) cộng thêm `DOUBLE_AISLE_EXTRA`.
 `stopOrder` đánh số **riêng** cho `PICKUP` và `DROPOFF`. Xoá hoặc đổi loại một điểm
 thì cả hai nhóm được đánh lại liên tục.
 
-### 11.5. Đánh giá (nửa đọc — Thành viên 2)
+### 11.5. Đánh giá (phần đọc)
 
 | Method + Path | Việc |
 |---|---|
@@ -991,10 +985,8 @@ API nội bộ `/api/internal/**` **không được route qua gateway** — ch�
 ### 11.10. Chưa có API (đã có schema)
 
 File này chỉ liệt kê endpoint **đã chạy được**. Các endpoint dự kiến (dashboard
-`/api/admin/stats/*`, ghi đánh giá, profile nhà xe, khuyến mãi...) và thứ tự làm nằm ở
-[PROJECT_STATUS.md](PROJECT_STATUS.md) mục "Lộ trình đề cử"; cách làm ở
-[HUONG_DAN_HOAN_THIEN_BE.md](../HUONG_DAN_HOAN_THIEN_BE.md). Làm xong việc nào thì
-chuyển endpoint đó vào mục 11 ở trên.
+`/api/admin/stats/*`, ghi đánh giá, profile nhà xe, khuyến mãi...) chưa được
+ghi ở đây. Làm xong việc nào thì chuyển endpoint đó vào mục 11 ở trên.
 
 DB đã lưu `subtotal_price`, `discount_amount`, `paid_at`, `cancelled_at` cho mỗi đơn
 nhưng `BookingResponse` chưa trả ra — thêm khi làm khuyến mãi (Việc 9).

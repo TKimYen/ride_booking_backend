@@ -33,7 +33,7 @@ public class OpenApiConfig {
                         .version("v1.0.0")
                         .description("""
                                 Module Đặt vé: Catalog chuyến xe, sơ đồ ghế, tuyến điểm, đánh giá.
-                                Phục vụ nhóm Frontend (Thành viên 1 và 3) và trang Quản lý của Admin.
+                                Phục vụ các trang của khách và trang Quản lý của Admin.
 
                                 **Luồng chính:**
                                 1. Khách tìm chuyến: `GET /api/trips`
@@ -51,7 +51,7 @@ public class OpenApiConfig {
                                 `seat_name` là duy nhất trong cả chuyến nên xe hai tầng ghi kèm số tầng
                                 vào tên (`1A1`, `2A1`).
                                 """)
-                        .contact(new Contact().name("Thành viên 3 - Module Đặt vé & Thanh toán"))
+                        .contact(new Contact().name("Nhóm XeGo"))
                         .license(new License().name("MIT")))
                 .servers(List.of(
                         new Server().url("http://localhost:8083").description("Gọi trực tiếp booking-service"),

@@ -331,7 +331,7 @@ Table booking_db_placeholder {
 // ---------------------------------------------------------------- B1
 //  Catalog và Booking CHUNG service, CHUNG database. KHÔNG tách.
 //
-//  Lý do: nghiệp vụ giữ ghế 10 phút chống đụng độ (requirement.md, Thành viên 3 —
+//  Lý do: nghiệp vụ giữ ghế 10 phút chống đụng độ (requirement.md, module Đặt vé —
 //  phần bị gọi là khó nhất) cần khoá dòng trip_seats rồi ghi bookings trong CÙNG
 //  một transaction. Tách thành 2 database sẽ mất transaction, buộc phải tự viết
 //  distributed lock — tức là tự tạo ra chính lỗi khó nhất của bài toán.
@@ -464,20 +464,18 @@ Table booking_db_placeholder {
 // ==========================================
 // C. LỘ TRÌNH ĐÃ CHỐT
 // ==========================================
-// Nhóm trước đây chỉ chia theo người (requirement.md mục 2), chưa có thứ tự
-// làm. Mục này chốt thứ tự để không ai phải tự đoán phần còn thiếu.
+// Mục này chốt thứ tự làm. Không ai phải tự đoán phần còn thiếu.
 //
 //  Giai đoạn 1 — Catalog + DB nền        [XONG]
-//    Làm sao sớm nhất vì TV1, TV2, TV4 đều đang bị chặn vì thiếu dữ liệu tuyến
+//    Làm sớm nhất vì các trang tìm kiếm, chi tiết, admin đều cần dữ liệu tuyến
 //    và chuyến xe. Thứ tự làm trong giai đoạn:
 //      1. booking_db + compose + pom + API.md    (hạ tầng)              [xong]
 //      2. Locations, Bus_Companies, Routes       (không FK về nhau)    [xong]
-//      3. Trips + API tìm kiếm có phân trang    (TV1 cần)             [xong]
+//      3. Trips + API tìm kiếm có phân trang                          [xong]
 //      4. Trip_Seats: sinh ghế tự động + API đọc trạng thái (chưa giữ ghế) [xong]
 //      5. Stop_Points                                                  [xong]
 //      6. Seed data: vài tỉnh, 3-4 nhà xe, 4-5 tuyến, vài chuyến có ghế thật [xong]
-//      7. Reviews: bảng + API đọc             (TV2 cần tab Đánh giá)   [xong]
-//    Xong giai đoạn này thì 3/4 người có việc để làm song song.
+//      7. Reviews: bảng + API đọc             (cho tab Đánh giá)       [xong]
 //
 //    Đã kiểm chứng trên PostgreSQL thật (JPA_DDL_AUTO=validate) và qua gateway:
 //      - Seed: 20 địa điểm, 6 nhà xe, 15 tuyến, 225 chuyến, 8850 ghế.
@@ -517,8 +515,8 @@ Table booking_db_placeholder {
 //    Entity + repository + SQL đã có; CHƯA có API và seed.
 //
 //  Giai đoạn 3 trở đi (đánh giá ghi, hoàn tất chuyến, dashboard, nội dung,
-//  khuyến mãi, khách vãng lai): lộ trình, người phụ trách và quyết định đã
-//  chốt nằm ở PROJECT_STATUS.md — KHÔNG ghi lại ở đây để khỏi lệch nhau.
+//  khuyến mãi, khách vãng lai): chưa làm, KHÔNG ghi lộ trình ở đây để khỏi
+//  lệch với tài liệu theo dõi công việc.
 //
 //  payment-service: ĐÃ dựng (8084) với Stripe Checkout + webhook. Không có
 //  database riêng: ghi bảng payments qua API nội bộ của booking-service.

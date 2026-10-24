@@ -12,25 +12,25 @@ Nhóm 3: Admin (Quản trị hệ thống)
 Trang Dashboard: Biểu đồ thống kê doanh thu, số lượng vé bán ra, tỷ lệ lấp đầy.
 Trang Quản lý Chuyến xe: Thêm, sửa, xóa thông tin chuyến xe (tuyến đường, giờ đi, giá vé) để hiển thị ra cho khách đặt.
 Trang Quản lý Đơn hàng: Xem danh sách vé mà User đã đặt, quản lý danh sách hành khách theo từng chuyến.
-2. Bảng Phân công Công việc Full-stack (Theo luồng Pages)
-Ghi chú: Toàn bộ thiết kế Database chung sẽ được chốt trước một lần cho cả nhóm. Các thành viên nhận Page nào sẽ chịu trách nhiệm code cả Frontend (UI, State) và Backend (API, Logic xử lý) cho Page đó.
-Thành viên 1: Module Khám phá (Trang chủ + Danh sách kết quả)
-Trang đảm nhận: Trang chủ, Trang Danh sách kết quả (Nhóm Guest).
+2. Phạm vi kỹ thuật theo Module (Full-stack, theo luồng Pages)
+Ghi chú: Toàn bộ thiết kế Database chung sẽ được chốt trước một lần cho cả nhóm. Mỗi Page gồm cả Frontend (UI, State) và Backend (API, Logic xử lý).
+Module Khám phá (Trang chủ + Danh sách kết quả)
+Các trang: Trang chủ, Trang Danh sách kết quả (Nhóm Guest).
 Frontend (React): Dựng layout tổng, code form tìm kiếm động, hiển thị danh sách chuyến, xử lý state cho bộ lọc và sắp xếp.
 Backend (Spring Boot): Viết API tìm kiếm chuyến xe, API xử lý truy vấn động cho bộ lọc và sắp xếp.
 Nhiệm vụ điểm cộng (Từ từ làm sau): Code tính năng tìm kiếm thông minh bằng AI Gemini (tự nhận diện điểm đi/đến, giá tiền từ câu text người dùng gõ).
-Thành viên 2: Module Chi tiết, Đánh giá & Phân quyền
-Trang đảm nhận: Trang Thông tin chi tiết (Nhóm Guest), Trang Đánh giá chuyến đi (Nhóm User). Phụ trách thêm luồng Đăng nhập/Đăng ký.
+Module Chi tiết, Đánh giá & Phân quyền
+Các trang: Trang Thông tin chi tiết (Nhóm Guest), Trang Đánh giá chuyến đi (Nhóm User), luồng Đăng nhập/Đăng ký.
 Frontend (React): Code component Tab thông tin chuyến xe, form đăng nhập/đăng ký, form gửi đánh giá chuyến đi, xử lý chặn popup yêu cầu login khi khách bấm "Chọn chỗ".
 Backend (Spring Boot): API lấy chi tiết chuyến xe, API CRUD cho Review/Đánh giá. Cấu hình Spring Security (JWT) phân quyền Guest, User, Admin.
 Nhiệm vụ điểm cộng (Từ từ làm sau): Setup Docker và Docker Compose cho Database và Backend để chuẩn hóa môi trường dev cho cả nhóm.
-Thành viên 3: Module Đặt vé Core (Nghiệp vụ phức tạp nhất)
-Trang đảm nhận: Trang Chọn chỗ & Thanh toán (Nhóm User).
+Module Đặt vé Core (Nghiệp vụ phức tạp nhất)
+Các trang: Trang Chọn chỗ & Thanh toán (Nhóm User).
 Frontend (React): Code sơ đồ ghế 2 tầng (click chọn đổi màu, tính tổng tiền), đồng hồ đếm ngược, tự động điền form, popup chặn thoát trang, giao diện tích hợp các cổng thanh toán.
 Backend (Spring Boot): API tạo đơn hàng, thuật toán giữ ghế tạm thời trong 10 phút, xử lý chống đụng độ dữ liệu (Concurrency) khi nhiều người giành 1 ghế, API tích hợp thanh toán (VNPAY demo).
 Nhiệm vụ điểm cộng (Từ từ làm sau): Tách module xử lý vé và ghế này thành một Booking Microservice độc lập.
-Thành viên 4: Module Quản lý Cá nhân & Quản trị Hệ thống
-Trang đảm nhận: Trang Đơn hàng của tôi, Trang Thông tin tài khoản (Nhóm User) + Toàn bộ 3 Trang Admin (Dashboard, Quản lý chuyến, Quản lý đơn hàng).
+Module Quản lý Cá nhân & Quản trị Hệ thống
+Các trang: Trang Đơn hàng của tôi, Trang Thông tin tài khoản (Nhóm User) + Toàn bộ 3 Trang Admin (Dashboard, Quản lý chuyến, Quản lý đơn hàng).
 Frontend (React): Code giao diện hồ sơ, lịch sử vé chia tab cho User. Dựng layout Sidebar cho Admin, vẽ biểu đồ thống kê, code các form Thêm/Sửa/Xóa dữ liệu nội bộ.
 Backend (Spring Boot): API cập nhật user profile, API truy xuất lịch sử đơn hàng. Các API thống kê và CRUD chuyên biệt dành riêng cho quyền Admin.
 Nhiệm vụ điểm cộng (Từ từ làm sau): Thực hiện Deploy Backend lên server ảo (VPS hoặc Render) và Deploy Frontend React lên Vercel.
@@ -45,8 +45,8 @@ Link DB: [db.md](db.md)
 
 Thứ tự làm đã chốt ở [db.md](db.md) mục C. Trạng thái hiện tại:
 
-- **Giai đoạn 1 — Catalog + DB nền: XONG.** TV1 có API tìm kiếm/lọc/sắp xếp chuyến;
-  TV2 có API chi tiết chuyến + đọc đánh giá; TV4 có API admin CRUD catalog; TV3 có
+- **Giai đoạn 1 — Catalog + DB nền: XONG.** Đã có API tìm kiếm/lọc/sắp xếp chuyến,
+  API chi tiết chuyến + đọc đánh giá, API admin CRUD catalog và
   API đọc sơ đồ ghế (việc giữ ghế 10 phút thuộc Giai đoạn 2).
 - Endpoint đầy đủ: [API.md](API.md) mục 11. Cổng booking-service là `8083`,
   database `booking_db` (cổng host `5435`).
@@ -61,8 +61,6 @@ Thứ tự làm đã chốt ở [db.md](db.md) mục C. Trạng thái hiện t�
   [API.md](API.md) mục 11.7–11.8. 100 test booking chạy xanh, có test tranh ghế
   hai luồng thật.
 - Giai đoạn 3 (đánh giá ghi, dashboard thống kê) chưa làm; bảng và route đã sẵn.
-  **Lộ trình còn lại và các quyết định đã chốt** (cổng thanh toán, quy tắc đánh giá,
-  định nghĩa dashboard, khách vãng lai...) nằm ở [PROJECT_STATUS.md](PROJECT_STATUS.md).
 - Khác biệt so với đặc tả đã chốt: thanh toán chính dùng **Stripe test mode** thay
   VNPAY (VNPAY là điểm cộng); **khách vãng lai đặt vé được không cần đăng nhập** (như
   Vexere — đã làm 2026-10-22): bấm "Chọn chỗ" chỉ gợi ý đăng nhập để tự điền thông tin,

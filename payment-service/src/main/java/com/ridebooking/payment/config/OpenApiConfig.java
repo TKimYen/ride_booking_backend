@@ -48,7 +48,7 @@ public class OpenApiConfig {
                                 **Bảo mật:** `checkout-session` cần JWT. `webhook` công khai nhưng
                                 bắt buộc có chữ ký `Stripe-Signature` hợp lệ.
                                 """)
-                        .contact(new Contact().name("Thành viên 3 - Module Đặt vé & Thanh toán"))
+                        .contact(new Contact().name("Nhóm XeGo"))
                         .license(new License().name("MIT")))
                 .servers(List.of(
                         new Server().url("http://localhost:8084").description("Gọi trực tiếp payment-service"),

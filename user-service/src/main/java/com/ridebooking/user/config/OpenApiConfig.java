@@ -43,7 +43,7 @@ public class OpenApiConfig {
                                 Mật khẩu và email đăng nhập nằm ở `auth_db` (auth-service), service này không đọc được.
                                 `role` trong response là bản sao được đồng bộ từ auth-service.
                                 """)
-                        .contact(new Contact().name("Thành viên 2 - Module Chi tiết, Đánh giá & Phân quyền"))
+                        .contact(new Contact().name("Nhóm XeGo"))
                         .license(new License().name("MIT")))
                 .servers(List.of(
                         new Server().url("http://localhost:8082").description("Gọi trực tiếp user-service"),

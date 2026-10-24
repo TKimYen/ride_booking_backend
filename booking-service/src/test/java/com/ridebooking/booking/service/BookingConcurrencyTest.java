@@ -21,6 +21,7 @@ import com.ridebooking.booking.repository.RouteRepository;
 import com.ridebooking.booking.repository.TripRepository;
 import com.ridebooking.booking.repository.TripSeatRepository;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,6 +51,9 @@ import org.springframework.test.context.TestPropertySource;
         "spring.datasource.url=jdbc:h2:mem:bookingconcurrency;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;LOCK_TIMEOUT=10000",
         "app.booking.expiry-job.enabled=false"})
 class BookingConcurrencyTest {
+
+    /** Ngày đi luôn ở tương lai: chuyến đã khởi hành bị chặn đặt vé. */
+    private static final LocalDate FUTURE_DAY = LocalDate.now().plusDays(7);
 
     @Autowired private BookingService bookingService;
 
@@ -89,8 +93,8 @@ class BookingConcurrencyTest {
         trip.setRoute(route);
         trip.setCompany(company);
         trip.setBusType(BusType.LIMOUSINE_29);
-        trip.setDepartureTime(LocalDateTime.of(2026, 10, 5, 6, 0));
-        trip.setArrivalTime(LocalDateTime.of(2026, 10, 5, 14, 30));
+        trip.setDepartureTime(FUTURE_DAY.atTime(6, 0));
+        trip.setArrivalTime(FUTURE_DAY.atTime(14, 30));
         trip.setBasePrice(new BigDecimal("500000"));
         trip.setStatus(TripStatus.ACTIVE);
         trip = tripRepository.saveAndFlush(trip);

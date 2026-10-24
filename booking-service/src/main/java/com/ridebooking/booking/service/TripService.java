@@ -76,7 +76,7 @@ public class TripService {
         return PageResponse.from(result, withSeatCounts(result.getContent()));
     }
 
-    /** Chi tiết chuyến cho Trang Thông tin chi tiết (Thành viên 2). */
+    /** Chi tiết chuyến cho Trang Thông tin chi tiết. */
     public TripResponse getById(Integer id) {
         Trip trip = requireById(id);
         Map<Integer, Integer> totals = countTotalsFor(List.of(id));

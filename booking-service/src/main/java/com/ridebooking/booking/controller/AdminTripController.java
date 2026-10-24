@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Trang Quản lý Chuyến xe của Admin (requirement.md, Thành viên 4). */
+/** Trang Quản lý Chuyến xe của Admin (requirement.md). */
 @RestController
 @RequestMapping("/api/admin/trips")
 @PreAuthorize("hasRole('ADMIN')")

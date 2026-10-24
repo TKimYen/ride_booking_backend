@@ -91,11 +91,10 @@ Chỉ cần **một** trong hai cách:
 ### Bước 1 — Clone về
 
 ```bash
-git clone https://github.com/<username>/ride-booking-microservices.git
+git clone https://github.com/TKimYen/ride-booking-microservices.git
 cd ride-booking-microservices
 ```
 
-> Thay `<username>` bằng tài khoản GitHub thật của bạn.
 
 ### Bước 2 — Tạo file cấu hình
 
@@ -292,7 +291,7 @@ ride-booking-microservices/
 │
 ├── API.md                       # Tài liệu API đầy đủ (endpoint, ví dụ, status code)
 ├── db.md                        # Thiết kế database (DBML)
-└── requirement.md               # Đặc tả nghiệp vụ & phân công thành viên
+└── requirement.md               # Đặc tả nghiệp vụ & danh sách page
 ```
 
 ---
@@ -563,10 +562,7 @@ Những thứ **an toàn cho local nhưng BẮT BUỘC phải đổi khi deploy*
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | [API.md](API.md)                 | **Tài liệu API đầy đủ** — mọi endpoint, ví dụ request/response, format lỗi, bảng status code, luồng xác thực, hardening |
 | [db.md](db.md)                   | Thiết kế database (đặc tả logic + database vật lý sau khi tách)                                                         |
-| [requirement.md](requirement.md) | Đặc tả nghiệp vụ, danh sách page và phân công thành viên                                                                |
-| [PROJECT_STATUS.md](PROJECT_STATUS.md) | **Trạng thái, lộ trình và các quyết định đã chốt** — đọc file này trước khi nhận việc                       |
-| [HUONG_DAN_HOAN_THIEN_BE.md](../HUONG_DAN_HOAN_THIEN_BE.md) | Cách làm từng việc backend còn thiếu (code khung, test)                                          |
-| [../HUONG_DAN_FRONTEND.md](../HUONG_DAN_FRONTEND.md) | Thiết kế frontend: route, đặc tả trang, design system                                                |
+| [requirement.md](requirement.md) | Đặc tả nghiệp vụ, danh sách page và phạm vi từng module                                                                 |
 | [.env.example](.env.example)     | Toàn bộ biến môi trường kèm chú thích                                                                                   |
 
 Xem nhanh API mà không cần đọc file: mở

@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** Sơ đồ ghế đầy đủ của một chuyến, sẵn sàng cho Trang Chọn chỗ (Thành viên 3). */
+/** Sơ đồ ghế đầy đủ của một chuyến, sẵn sàng cho Trang Chọn chỗ. */
 @Schema(description = "Sơ đồ ghế của một chuyến")
 public record SeatMapResponse(
 

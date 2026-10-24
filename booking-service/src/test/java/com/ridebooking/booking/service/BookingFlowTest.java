@@ -29,6 +29,7 @@ import com.ridebooking.booking.repository.RouteRepository;
 import com.ridebooking.booking.repository.TripRepository;
 import com.ridebooking.booking.repository.TripSeatRepository;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +49,9 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest
 @Transactional
 class BookingFlowTest {
+
+    /** Ngày đi luôn ở tương lai: chuyến đã khởi hành bị chặn đặt vé. */
+    private static final LocalDate FUTURE_DAY = LocalDate.now().plusDays(7);
 
     private static final int USER = 101;
     private static final int OTHER_USER = 202;
@@ -102,8 +106,8 @@ class BookingFlowTest {
         trip.setRoute(route);
         trip.setCompany(company);
         trip.setBusType(BusType.LIMOUSINE_29);
-        trip.setDepartureTime(LocalDateTime.of(2026, 10, 5, 6, 0));
-        trip.setArrivalTime(LocalDateTime.of(2026, 10, 5, 14, 30));
+        trip.setDepartureTime(FUTURE_DAY.atTime(6, 0));
+        trip.setArrivalTime(FUTURE_DAY.atTime(14, 30));
         trip.setBasePrice(new BigDecimal("500000"));
         trip.setStatus(TripStatus.ACTIVE);
         trip = tripRepository.saveAndFlush(trip);
@@ -348,8 +352,8 @@ class BookingFlowTest {
         other.setRoute(trip.getRoute());
         other.setCompany(trip.getCompany());
         other.setBusType(BusType.SLEEPER_45);
-        other.setDepartureTime(LocalDateTime.of(2026, 10, 6, 6, 0));
-        other.setArrivalTime(LocalDateTime.of(2026, 10, 6, 14, 0));
+        other.setDepartureTime(FUTURE_DAY.plusDays(1).atTime(6, 0));
+        other.setArrivalTime(FUTURE_DAY.plusDays(1).atTime(14, 0));
         other.setBasePrice(new BigDecimal("400000"));
         other.setStatus(TripStatus.ACTIVE);
         other = tripRepository.saveAndFlush(other);

@@ -23,7 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Tạo và sửa chuyến xe cho Trang Quản lý Chuyến xe (Thành viên 4).
+ * Tạo và sửa chuyến xe cho Trang Quản lý Chuyến xe.
  *
  * <p>Việc ghi ghế nằm trong cùng transaction với việc tạo chuyến, cố tình vậy.
  * Nếu tạo chuyến xong mới ghi ghế ở transaction sau, thì giữa hai lần gọi đó có

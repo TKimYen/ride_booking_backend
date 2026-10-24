@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Điểm dừng công khai — Trang chi tiết chuyến (Thành viên 1).
+ * Điểm dừng công khai — Trang chi tiết chuyến.
  *
  * <p>Điểm đón xếp trước điểm trả, mỗi nhóm theo thứ tự dọc tuyến, nên frontend vẽ
  * thẳng theo mảng trả về.

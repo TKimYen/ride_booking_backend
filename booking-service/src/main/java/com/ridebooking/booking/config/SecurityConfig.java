@@ -95,7 +95,7 @@ public class SecurityConfig {
                         // hasRole("ADMIN") ở dưới.
                         .requestMatchers(HttpMethod.GET, PUBLIC_CATALOG_PATHS.toArray(String[]::new)).permitAll()
 
-                        // requirement.md giao Trang Quản lý Chuyến xe cho Thành viên 4.
+                        // Mọi API quản trị chỉ dành cho ADMIN.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
                         // Khách vãng lai đặt vé được (db.md B8). "Đơn của tôi" và gắn

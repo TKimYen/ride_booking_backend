@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 /**
  * Bảng {@code stop_points} — điểm đón và điểm trả của một chuyến.
  *
- * <p>Trên Trang chi tiết chuyến (Thành viên 1) khách cần biết xe đón ở đâu, dọc
+ * <p>Trên Trang chi tiết chuyến khách cần biết xe đón ở đâu, dọc
  * theo thứ tự nào, và dự kiến mấy giờ. Khối thông tin này là điểm dừng, khác với
  * địa điểm đầu/cuối nằm ở {@code routes}.
  *

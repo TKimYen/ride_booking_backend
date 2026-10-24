@@ -7,13 +7,13 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 /**
- * Bộ lọc cho Trang Danh sách kết quả và API tìm kiếm chuyến (Thành viên 1).
+ * Bộ lọc cho Trang Danh sách kết quả và API tìm kiếm chuyến.
  *
  * <p>Mọi trường đều tuỳ chọn. Bỏ trống tất cả thì trả chuyến ACTIVE sắp theo giờ
  * đi — đó là mặc định hợp lý và cũng là truy vấn được index
  * {@code ix_trips_status_departure} phục vụ.
  *
- * <p>Không có trường {@code keyword} tự do: tìm kiếm của thành viên 1 là lọc theo
+ * <p>Không có trường {@code keyword} tự do: tìm kiếm ở đây là lọc theo
  * cặp địa điểm cụ thể, không phải tìm toàn văn. Tìm toàn văn chuyến xe là điểm
  * cộng bằng AI Gemini, làm sau.
  */

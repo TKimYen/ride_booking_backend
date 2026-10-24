@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Đánh giá nhà xe — phần đánh giá trên Trang chi tiết chuyến (Thành viên 2).
+ * Đánh giá nhà xe — phần đánh giá trên Trang chi tiết chuyến.
  *
  * <p>Endpoint này PUBLIC: khách chưa đăng nhập vẫn xem được đánh giá, và đó là
  * lý do người dùng tìm được nhà xe nào tốt. Nếu đã đăng nhập thì mỗi dòng có

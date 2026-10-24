@@ -20,8 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Danh sách và thống kê đánh giá — phần đánh giá nhà xe trên Trang chi tiết
- * (Thành viên 2).
+ * Danh sách và thống kê đánh giá — phần đánh giá nhà xe trên Trang chi tiết.
  *
  * <p>Giai đoạn 1 chỉ ĐỌC. Viết đánh giá cần xác nhận khách đã đi chuyến đó, mà
  * điều đó lấy từ {@code bookings} — thuộc Giai đoạn 2.

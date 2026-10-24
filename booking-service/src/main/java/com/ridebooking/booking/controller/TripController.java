@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Nhóm Guest — API đọc chuyến xe.
  *
- * <p>Đây là API quan trọng nhất của Module Khám phá (Thành viên 1): Trang chủ và
+ * <p>Đây là API quan trọng nhất của Module Khám phá: Trang chủ và
  * Trang Danh sách kết quả đều dùng {@link #search}. Thêm/sửa/xoá nằm ở
  * {@code AdminTripController}.
  */
@@ -80,7 +80,7 @@ public class TripController {
     }
 
     @Operation(summary = "Chi tiết chuyến (Trang Thông tin chi tiết)",
-            description = "Thành viên 2 dùng endpoint này cho phần đầu của trang: tuyến, nhà xe, giờ, giá, số ghế.")
+            description = "Dùng cho phần đầu của trang: tuyến, nhà xe, giờ, giá, số ghế.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Thành công"),
             @ApiResponse(responseCode = "404", description = "Không tìm thấy chuyến")})
