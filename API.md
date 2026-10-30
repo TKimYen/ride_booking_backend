@@ -941,6 +941,11 @@ nhật dòng cũ, cho đơn khác thì trả `409`.
 `PaymentRequest`: `gateway` (`VNPAY`/`MOMO`/`ZALOPAY`/`STRIPE`), `bankCode?`, `transactionNo?`,
 `responseCode?`.
 
+Sau khi đơn chuyển thành `PAID` và transaction commit, booking-service gửi email
+vé tới email liên hệ, kèm mã vé, thông tin chuyến, ghế, số tiền và link tra cứu.
+Trong môi trường Docker, xem email tại http://localhost:8025. Link mở
+`/tra-cuu-ve` và điền sẵn mã vé; khách vẫn cần nhập số điện thoại đặt vé.
+
 ### 11.8. Admin — Quản lý Đơn hàng
 
 `GET /api/admin/bookings?tripId=&status=&page=&size=` trả danh sách đơn (và hành

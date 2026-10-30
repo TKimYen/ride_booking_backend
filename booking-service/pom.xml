@@ -45,6 +45,11 @@
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Gọi user-service lấy tên người đánh giá. Dùng RestTemplateBuilder y như
              auth-service để timeout và baseUrl khai ở đúng một chỗ. -->
         <dependency>

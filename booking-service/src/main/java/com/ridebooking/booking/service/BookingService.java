@@ -20,6 +20,7 @@ import com.ridebooking.booking.enums.PaymentStatus;
 import com.ridebooking.booking.enums.PointType;
 import com.ridebooking.booking.enums.SeatStatus;
 import com.ridebooking.booking.enums.TripStatus;
+import com.ridebooking.booking.event.TicketPaidEvent;
 import com.ridebooking.booking.exception.BadRequestException;
 import com.ridebooking.booking.exception.ConflictException;
 import com.ridebooking.booking.exception.ResourceNotFoundException;
@@ -45,6 +46,7 @@ import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -87,6 +89,7 @@ public class BookingService {
     private final StopPointRepository stopPointRepository;
     private final PromotionRepository promotionRepository;
     private final PromotionService promotionService;
+    private final ApplicationEventPublisher eventPublisher;
     private final long holdMinutes;
 
     public BookingService(BookingRepository bookingRepository,
@@ -97,6 +100,7 @@ public class BookingService {
                           StopPointRepository stopPointRepository,
                           PromotionRepository promotionRepository,
                           PromotionService promotionService,
+                          ApplicationEventPublisher eventPublisher,
                           @Value("${app.booking.seat-hold-minutes:10}") long holdMinutes) {
         this.bookingRepository = bookingRepository;
         this.bookingDetailRepository = bookingDetailRepository;
@@ -106,6 +110,7 @@ public class BookingService {
         this.stopPointRepository = stopPointRepository;
         this.promotionRepository = promotionRepository;
         this.promotionService = promotionService;
+        this.eventPublisher = eventPublisher;
         this.holdMinutes = holdMinutes;
     }
 
@@ -360,6 +365,16 @@ public class BookingService {
         payment.setResponseCode(responseCode);
         payment.setStatus(PaymentStatus.SUCCESS);
         paymentRepository.save(payment);
+
+        if (booking.getContactEmail() != null && !booking.getContactEmail().isBlank()) {
+            eventPublisher.publishEvent(new TicketPaidEvent(
+                    booking.getContactEmail(),
+                    booking.getBookingCode(),
+                    booking.getTrip().getRoute().getName(),
+                    booking.getTrip().getDepartureTime(),
+                    details.stream().map(detail -> detail.getSeat().getSeatName()).sorted().toList(),
+                    booking.getTotalPrice()));
+        }
 
         return BookingResponse.from(booking, details, payment, now);
     }

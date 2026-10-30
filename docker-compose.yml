@@ -274,6 +274,13 @@ services:
       # Thời gian giữ ghế, dùng cho cả đồng hồ đếm ngược 10 phút ở Trang Chọn
       # chỗ và cho job trả ghế về AVAILABLE.
       SEAT_HOLD_MINUTES: ${SEAT_HOLD_MINUTES:-10}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-false}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@ridebooking.local}
     depends_on:
       discovery-server:
         condition: service_started
