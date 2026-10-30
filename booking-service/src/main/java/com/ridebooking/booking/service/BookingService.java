@@ -10,6 +10,7 @@ import com.ridebooking.booking.dto.PaymentRequest;
 import com.ridebooking.booking.entity.Booking;
 import com.ridebooking.booking.entity.BookingDetail;
 import com.ridebooking.booking.entity.Payment;
+import com.ridebooking.booking.entity.Promotion;
 import com.ridebooking.booking.entity.StopPoint;
 import com.ridebooking.booking.entity.Trip;
 import com.ridebooking.booking.entity.TripSeat;
@@ -25,6 +26,7 @@ import com.ridebooking.booking.exception.ResourceNotFoundException;
 import com.ridebooking.booking.repository.BookingDetailRepository;
 import com.ridebooking.booking.repository.BookingRepository;
 import com.ridebooking.booking.repository.PaymentRepository;
+import com.ridebooking.booking.repository.PromotionRepository;
 import com.ridebooking.booking.repository.StopPointRepository;
 import com.ridebooking.booking.repository.TripRepository;
 import com.ridebooking.booking.repository.TripSeatRepository;
@@ -83,6 +85,8 @@ public class BookingService {
     private final TripRepository tripRepository;
     private final TripSeatRepository tripSeatRepository;
     private final StopPointRepository stopPointRepository;
+    private final PromotionRepository promotionRepository;
+    private final PromotionService promotionService;
     private final long holdMinutes;
 
     public BookingService(BookingRepository bookingRepository,
@@ -91,6 +95,8 @@ public class BookingService {
                           TripRepository tripRepository,
                           TripSeatRepository tripSeatRepository,
                           StopPointRepository stopPointRepository,
+                          PromotionRepository promotionRepository,
+                          PromotionService promotionService,
                           @Value("${app.booking.seat-hold-minutes:10}") long holdMinutes) {
         this.bookingRepository = bookingRepository;
         this.bookingDetailRepository = bookingDetailRepository;
@@ -98,6 +104,8 @@ public class BookingService {
         this.tripRepository = tripRepository;
         this.tripSeatRepository = tripSeatRepository;
         this.stopPointRepository = stopPointRepository;
+        this.promotionRepository = promotionRepository;
+        this.promotionService = promotionService;
         this.holdMinutes = holdMinutes;
     }
 
@@ -196,8 +204,15 @@ public class BookingService {
             details.add(new BookingDetail(booking, seat, price));
         }
         booking.setSubtotalPrice(total);
-        booking.setDiscountAmount(BigDecimal.ZERO);
-        booking.setTotalPrice(total);
+        Promotion promotion = null;
+        BigDecimal discount = BigDecimal.ZERO;
+        if (request.promotionCode() != null && !request.promotionCode().isBlank()) {
+            promotion = promotionService.validateAndGetPromotion(request.promotionCode(), trip, total, now);
+            discount = promotion.discountFor(total);
+        }
+        booking.setPromotion(promotion);
+        booking.setDiscountAmount(discount);
+        booking.setTotalPrice(total.subtract(discount).max(BigDecimal.ZERO));
         bookingRepository.save(booking);
         bookingDetailRepository.saveAll(details);
 
@@ -323,6 +338,13 @@ public class BookingService {
 
         booking.setStatus(BookingStatus.PAID);
         booking.setPaidAt(now);
+
+        if (booking.getPromotion() != null) {
+            promotionRepository.findByIdForUpdate(booking.getPromotion().getId()).ifPresent(promo -> {
+                promo.setUsedCount((promo.getUsedCount() == null ? 0 : promo.getUsedCount()) + 1);
+                promotionRepository.save(promo);
+            });
+        }
 
         // (payment_gateway, transaction_no) là UNIQUE. Nếu mã đã tồn tại: nếu thuộc
         // đơn khác thì từ chối, nếu cùng đơn (ví dụ lần trước FAILED) thì cập nhật

@@ -107,7 +107,7 @@ spring:
             - id: booking-service
               uri: ${BOOKING_SERVICE_URI:http://localhost:8083}
               predicates:
-                - Path=/api/trips/**,/api/bookings/**,/api/seats/**,/api/locations/**,/api/routes/**,/api/bus-companies/**,/api/stop-points/**,/api/reviews/**,/api/admin/trips/**,/api/admin/routes/**,/api/admin/bus-companies/**,/api/admin/locations/**,/api/admin/bookings/**
+                - Path=/api/trips/**,/api/bookings/**,/api/seats/**,/api/locations/**,/api/routes/**,/api/bus-companies/**,/api/stop-points/**,/api/reviews/**,/api/promotions/**,/api/admin/trips/**,/api/admin/routes/**,/api/admin/bus-companies/**,/api/admin/locations/**,/api/admin/bookings/**,/api/admin/promotions/**
             # ---- Payment service (Stripe Checkout + webhook) ----
             # checkout-session cần JWT; webhook Stripe gọi trực tiếp vào service,
             # xác thực bằng chữ ký Stripe-Signature (không qua JWT).
