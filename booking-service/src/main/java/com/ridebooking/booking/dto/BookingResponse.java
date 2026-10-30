@@ -27,6 +27,9 @@ public record BookingResponse(
         @Schema(example = "0901234567") String contactPhone,
         @Schema(example = "a@example.com") String contactEmail,
         @Schema(example = "500000.00") BigDecimal totalPrice,
+        @Schema(example = "550000.00") BigDecimal subtotalPrice,
+        @Schema(example = "50000.00") BigDecimal discountAmount,
+        @Schema(example = "HE2026") String promotionCode,
         @Schema(description = "PENDING | PAID | CANCELLED | COMPLETED | EXPIRED", example = "PENDING")
         String status,
         @Schema(example = "2026-10-02T10:00:00") LocalDateTime createdAt,
@@ -61,6 +64,9 @@ public record BookingResponse(
                 booking.getContactPhone(),
                 booking.getContactEmail(),
                 booking.getTotalPrice(),
+                booking.getSubtotalPrice(),
+                booking.getDiscountAmount(),
+                booking.getPromotion() != null ? booking.getPromotion().getCode() : null,
                 booking.getStatus().name(),
                 booking.getCreatedAt(),
                 booking.getExpiresAt(),
@@ -73,7 +79,8 @@ public record BookingResponse(
     /** Bản sao kèm token gốc của khách vãng lai — chỉ dùng ngay lúc cấp token. */
     public BookingResponse withGuestToken(String token) {
         return new BookingResponse(id, bookingCode, userId, guest, trip, pickupPoint, dropoffPoint,
-                contactName, contactPhone, contactEmail, totalPrice, status, createdAt, expiresAt,
+                contactName, contactPhone, contactEmail, totalPrice, subtotalPrice, discountAmount,
+                promotionCode, status, createdAt, expiresAt,
                 holdSecondsRemaining, seats, payment, token);
     }
 }
