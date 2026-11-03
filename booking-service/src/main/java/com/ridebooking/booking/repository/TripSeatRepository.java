@@ -72,6 +72,11 @@ public interface TripSeatRepository extends JpaRepository<TripSeat, Integer> {
 	@Query("SELECT s FROM TripSeat s WHERE s.id IN :ids ORDER BY s.id")
 	List<TripSeat> findAllByIdForUpdate(@Param("ids") List<Integer> ids);
 
+	/** Khoá mọi ghế của một chuyến theo thứ tự id, dùng khi huỷ chuyến. */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT s FROM TripSeat s WHERE s.trip.id = :tripId ORDER BY s.id")
+	List<TripSeat> findByTripIdForUpdate(@Param("tripId") Integer tripId);
+
 	/**
 	 * Trả mọi ghế đang HOLDING đã quá hạn về AVAILABLE trong MỘT câu UPDATE.
 	 *

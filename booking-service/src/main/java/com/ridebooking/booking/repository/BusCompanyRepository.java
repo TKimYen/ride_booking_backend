@@ -12,6 +12,9 @@ public interface BusCompanyRepository extends JpaRepository<BusCompany, Integer>
 
 	Optional<BusCompany> findByNameIgnoreCase(String name);
 
+	/** Còn nhà xe nào dùng tiện ích này không. */
+	boolean existsByAmenities_Id(Integer amenityId);
+
 	/** Tìm nhà xe theo tên, cho bộ lọc "theo nhà xe" ở Trang Danh sách kết quả. */
 	@Query("""
 			SELECT c FROM BusCompany c

@@ -298,17 +298,9 @@ ride-booking-microservices/
 
 ## 8. Database
 
-Mặc định `JPA_DDL_AUTO=update` nên Hibernate **tự tạo bảng** khi service khởi động
-— tiện cho local, không cần chạy script SQL nào.
-
-Khi deploy thật, đặt `JPA_DDL_AUTO=validate` (Hibernate chỉ kiểm tra schema,
-**không sửa**) và chạy script SQL một lần:
-
-```bash
-docker compose exec -T auth-db    psql -U postgres -d auth_db    < database/01_auth_db.sql
-docker compose exec -T user-db    psql -U postgres -d user_db    < database/02_user_db.sql
-docker compose exec -T booking-db psql -U postgres -d booking_db < database/03_booking_db.sql
-```
+Flyway tự tạo và nâng cấp schema khi service khởi động, không cần chạy SQL bằng tay.
+Migration nằm ở `src/main/resources/db/migration` của từng service; đổi schema thì thêm
+file `V2__mo_ta.sql` mới, không sửa file đã chạy. Hibernate chỉ `validate`, không tự sửa bảng.
 
 Script SQL là **idempotent** (chạy lại được), có sẵn unique email không phân biệt
 hoa/thường, foreign key, CHECK constraint và index.
@@ -376,7 +368,6 @@ Script cần có `curl`, `python3` và `docker`.
 | `APP_FRONTEND_URL`                                  | `http://localhost:5173`                   | Domain frontend dựng link trong email                                       |
 | `MAIL_*`                                            | Mailpit                                   | Đổi sang SMTP thật (Gmail/SES/Brevo)                                        |
 | `SEAT_HOLD_MINUTES`                                 | `10`                                      | Thời gian giữ ghế (đồng hồ đếm ngược + job trả ghế)                         |
-| `JPA_DDL_AUTO`                                      | `update`                                  | Đặt `validate` khi deploy thật                                              |
 | `STRIPE_SECRET_KEY`                                 | _(rỗng)_                                  | Rỗng thì service vẫn lên nhưng API thanh toán trả `502`                     |
 | `STRIPE_WEBHOOK_SECRET`                             | _(rỗng)_                                  | Bắt buộc để webhook Stripe xác thực được                                    |
 | `GATEWAY_IP`                                        | `172.28.0.10`                             | IP tĩnh của gateway — đổi thì **phải đổi cả `AUTH_TRUSTED_PROXY_IPS`**      |
@@ -544,7 +535,7 @@ Những thứ **an toàn cho local nhưng BẮT BUỘC phải đổi khi deploy*
 1. `JWT_SECRET` (≥ 32 ký tự, ngẫu nhiên) và `INTERNAL_API_KEY` — đây là 2 secret duy nhất bảo vệ toàn hệ thống.
 2. `ADMIN_PASSWORD` — không dùng `Admin@12345`.
 3. `MAIL_*` → SMTP thật, và bật `EMAIL_VERIFY_REQUIRED_FOR_LOGIN=true`.
-4. `JPA_DDL_AUTO=validate` + chạy `database/*.sql` một lần.
+4. Schema: Flyway tự chạy khi khởi động, không cần thao tác. Không bật `SEED_ENABLED`.
 5. `CORS_ALLOWED_ORIGINS` → domain thật (không dùng `*`).
 6. `GATEWAY_TRUSTED_PROXIES` / `AUTH_TRUSTED_PROXY_IPS` → IP của nginx/ALB thật.
    Nếu không khai đúng, **mọi người dùng bị ghi nhận chung một IP** và giới hạn

@@ -212,13 +212,8 @@ Table Promotions {
 // Catalog + booking nằm ở database thứ ba. Ba database chạy trong 3 container
 // PostgreSQL riêng (xem docker-compose.yml).
 //
-// SQL tạo schema: database/01_auth_db.sql, 02_user_db.sql, 03_booking_db.sql
-//   - Idempotent, chạy lại nhiều lần vẫn an toàn.
-//   - Local: không cần chạy, Hibernate tự tạo (JPA_DDL_AUTO=update).
-//   - Production: đặt JPA_DDL_AUTO=validate rồi chạy 3 file trên một lần:
-//       psql -U postgres -d auth_db    -f database/01_auth_db.sql
-//       psql -U postgres -d user_db    -f database/02_user_db.sql
-//       psql -U postgres -d booking_db -f database/03_booking_db.sql
+// Schema do Flyway quản lý: src/main/resources/db/migration của auth-, user-, booking-service.
+//   Service tự chạy migration khi khởi động; Hibernate chỉ validate.
 //     Khi đó Hibernate chỉ kiểm tra schema khớp, không tự sửa.
 //
 // Cổng: auth-db 5433, user-db 5434, booking-db 5435 (đều map từ 5432 trong
@@ -319,7 +314,7 @@ Table user_profiles {
 // Booking (Bookings, Booking_Details, Reviews, Payments) nằm CHUNG MỘT database.
 // Xem mục B để biết vì sao và ràng buộc nào đã chốt.
 Table booking_db_placeholder {
-  _ note 'Schema thật: database/03_booking_db.sql — xem mục B'
+  _ note 'Schema thật: booking-service/src/main/resources/db/migration/V1__booking_schema.sql — xem mục B'
 }
 
 // ==========================================

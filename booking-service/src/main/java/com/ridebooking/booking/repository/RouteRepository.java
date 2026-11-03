@@ -1,6 +1,7 @@
 package com.ridebooking.booking.repository;
 
 import com.ridebooking.booking.entity.Route;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
@@ -13,6 +14,25 @@ public interface RouteRepository extends JpaRepository<Route, Integer> {
 	Optional<Route> findByNameIgnoreCase(String name);
 
 	boolean existsByNameIgnoreCase(String name);
+
+	boolean existsByFeaturedTrue();
+
+	/** Các tuyến Admin đánh dấu nổi bật, kèm hai địa điểm. */
+	@Query("""
+			SELECT r FROM Route r
+			JOIN FETCH r.origin
+			JOIN FETCH r.destination
+			WHERE r.featured = true
+			""")
+	List<Route> findFeaturedWithLocations();
+
+	@Query("""
+			SELECT r FROM Route r
+			JOIN FETCH r.origin
+			JOIN FETCH r.destination
+			WHERE r.id IN :ids
+			""")
+	List<Route> findByIdInWithLocations(@Param("ids") Collection<Integer> ids);
 
 	/**
 	 * Các tuyến đi từ một địa điểm — dùng cho dropdown "Tuyến đường phổ biến"

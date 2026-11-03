@@ -38,7 +38,7 @@ public record TripRequest(
                 requiredMode = Schema.RequiredMode.REQUIRED)
         BigDecimal basePrice,
 
-        @Schema(description = "Trạng thái. Bỏ trống thì ACTIVE.", example = "ACTIVE",
+        @Schema(description = "Khi thêm: bỏ trống thì ACTIVE. Khi sửa: bỏ trống hoặc gửi đúng trạng thái hiện tại; đổi trạng thái bằng /cancel hoặc /complete.", example = "ACTIVE",
                 allowableValues = {"ACTIVE", "CANCELLED", "COMPLETED"})
         String status) {
 }

@@ -147,6 +147,11 @@ public class BookingService {
         }
 
         List<TripSeat> seats = lockSeats(seatIds);
+        // Đọc lại sau khi có khoá: huỷ chuyến đổi trạng thái rồi mới khoá ghế, nên
+        // request chờ khoá ở đây phải thấy chuyến đã huỷ thay vì tạo đơn mới.
+        if (tripRepository.findStatusById(trip.getId()).orElse(null) != TripStatus.ACTIVE) {
+            throw new ConflictException("Chuyến xe này không còn nhận đặt vé");
+        }
         for (TripSeat seat : seats) {
             if (!seat.getTrip().getId().equals(trip.getId())) {
                 throw new BadRequestException("Ghế " + seat.getSeatName() + " không thuộc chuyến này");

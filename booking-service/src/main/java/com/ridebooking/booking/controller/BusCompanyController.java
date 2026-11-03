@@ -1,6 +1,8 @@
 package com.ridebooking.booking.controller;
 
+import com.ridebooking.booking.dto.BusCompanyProfileResponse;
 import com.ridebooking.booking.dto.BusCompanyResponse;
+import com.ridebooking.booking.service.BusCompanyContentService;
 import com.ridebooking.booking.service.BusCompanyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -21,9 +23,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class BusCompanyController {
 
     private final BusCompanyService busCompanyService;
+    private final BusCompanyContentService contentService;
 
-    public BusCompanyController(BusCompanyService busCompanyService) {
+    public BusCompanyController(BusCompanyService busCompanyService, BusCompanyContentService contentService) {
         this.busCompanyService = busCompanyService;
+        this.contentService = contentService;
+    }
+
+    @Operation(summary = "Thông tin đầy đủ của nhà xe",
+            description = "Ảnh, tiện ích, chính sách và mốc hoàn tiền, dùng cho các tab của Trang chi tiết.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhà xe")})
+    @GetMapping("/{id}/profile")
+    public BusCompanyProfileResponse getProfile(@PathVariable Integer id) {
+        return contentService.getProfile(id);
     }
 
     @Operation(summary = "Danh sách / tìm nhà xe")

@@ -40,6 +40,17 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
+    /**
+     * Tầng service dùng {@code IllegalArgumentException} cho dữ liệu sai (giờ đến
+     * trước giờ đi, loại xe lạ...), thông điệp đã viết cho người dùng. Không có handler
+     * này thì các lỗi đó rơi xuống {@code Exception} và thành 500.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
+        log.debug("Dữ liệu không hợp lệ tại {} {}", request.getMethod(), request.getRequestURI(), ex);
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
         @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         String message = ex.getBindingResult().getFieldErrors().stream()

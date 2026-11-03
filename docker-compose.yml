@@ -84,7 +84,7 @@ services:
   # CỐ Ý dùng chung MỘT database cho cả catalog lẫn booking: thuật toán giữ ghế
   # 10 phút cần khoá dòng trip_seats rồi ghi bookings trong cùng một transaction.
   # Tách thành 2 database sẽ mất transaction và phải tự viết distributed lock.
-  # Schema: database/03_booking_db.sql
+  # Schema: booking-service/src/main/resources/db/migration/V1__booking_schema.sql
   booking-db:
     image: postgres:17-alpine
     container_name: ride-booking-booking-db
@@ -232,7 +232,6 @@ services:
       DB_NAME: user_db
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
     depends_on:
       discovery-server:
         condition: service_started
@@ -268,7 +267,7 @@ services:
       DB_NAME: booking_db
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+      SEED_ENABLED: ${SEED_ENABLED:-false}
       # Hiển thị tên/email người đặt vé (booking_db không join được auth_db).
       USER_SERVICE_URL: http://user-service:8082
       # Thời gian giữ ghế, dùng cho cả đồng hồ đếm ngược 10 phút ở Trang Chọn
@@ -384,3 +383,5 @@ networks:
         # Subnet gan tinh: subnet Docker mac dinh co thay doi giua may, lam
         # regex proxy-tin-cay trong auth-service khong con dung.
         - subnet: ${DOCKER_SUBNET:-172.28.0.0/24}
+          ip_range: ${DOCKER_IP_RANGE:-172.28.0.128/25}
+          gateway: ${DOCKER_BRIDGE_GATEWAY:-172.28.0.1}

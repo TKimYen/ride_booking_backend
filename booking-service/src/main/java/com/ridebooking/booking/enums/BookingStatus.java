@@ -15,7 +15,7 @@ package com.ridebooking.booking.enums;
  * về {@code AVAILABLE}, nhưng với khách đây là hai câu chuyện khác nhau — "tôi đã
  * huỷ" so với "tôi quên thanh toán". Trang Đơn hàng của tôi hiển thị khác nhau.
  *
- * <p>Giá trị phải khớp CHECK trong {@code database/03_booking_db.sql}.
+ * <p>Giá trị phải khớp CHECK trong {@code booking-service/src/main/resources/db/migration/V1__booking_schema.sql}.
  */
 public enum BookingStatus {
 

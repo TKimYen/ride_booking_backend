@@ -2,6 +2,8 @@ package com.ridebooking.gateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +16,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
@@ -31,6 +35,8 @@ import java.time.Duration;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @DisplayName("Gateway trả 503 khi service phía sau không phản hồi")
 class UpstreamUnavailableFilterTest {
+
+    private static HttpServer fakeAuthService;
 
     /**
      * Tự dựng WebTestClient thay vì dùng {@code @AutoConfigureWebTestClient} /
@@ -56,6 +62,40 @@ class UpstreamUnavailableFilterTest {
     static void pointRoutesAtDeadUpstream(DynamicPropertyRegistry registry) {
         registry.add("BOOKING_SERVICE_URI", () -> "http://127.0.0.1:" + deadPort());
         registry.add("PAYMENT_SERVICE_URI", () -> "http://127.0.0.1:" + deadPort());
+        registry.add("AUTH_SERVICE_URI", () -> "http://127.0.0.1:" + startFakeAuthService());
+    }
+
+    /**
+     * auth-service giả chỉ phục vụ {@code /v3/api-docs}.
+     *
+     * <p>Cùng lý do với {@code deadPort}: nếu trỏ vào cổng 8081 thật, ca kiểm tra tài
+     * liệu chỉ xanh khi máy đang chạy auth-service, và đỏ 503 ở mọi nơi khác, kể cả CI.
+     */
+    private static int startFakeAuthService() {
+        if (fakeAuthService == null) {
+            try {
+                fakeAuthService = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            } catch (IOException ex) {
+                throw new UncheckedIOException("Không dựng được auth-service giả", ex);
+            }
+            fakeAuthService.createContext("/v3/api-docs", exchange -> {
+                byte[] body = "{\"openapi\":\"3.1.0\"}".getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+            });
+            fakeAuthService.start();
+        }
+        return fakeAuthService.getAddress().getPort();
+    }
+
+    @AfterAll
+    static void stopFakeAuthService() {
+        if (fakeAuthService != null) {
+            fakeAuthService.stop(0);
+            fakeAuthService = null;
+        }
     }
 
     /** Cổng trống: bind để giành một cổng ngẫu nhiên, rồi nhả ra cho gateway. */
@@ -116,10 +156,13 @@ class UpstreamUnavailableFilterTest {
     }
 
     @Test
-    @DisplayName("Tài liệu OpenAPI vẫn phục vụ bình thường (không phải 503)")
+    @DisplayName("Tài liệu OpenAPI đi qua gateway bình thường khi service phía sau còn sống")
     void openApiDocsStillWork() {
         client().get().uri("/auth/v3/api-docs")
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().isOk()
+                .expectBody()
+                // Khớp nội dung để chắc route đã viết lại đường dẫn về /v3/api-docs.
+                .jsonPath("$.openapi").isEqualTo("3.1.0");
     }
 }

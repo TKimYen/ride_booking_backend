@@ -8,7 +8,7 @@ import java.util.List;
  * Loại xe — quyết định SƠ ĐỒ GHẾ của một chuyến.
  *
  * <p>Giá trị {@code name()} phải khớp với CHECK constraint trong
- * {@code database/03_booking_db.sql} (mục ck_trips_bus_type). Thêm loại xe mới
+ * {@code booking-service/src/main/resources/db/migration/V1__booking_schema.sql} (mục ck_trips_bus_type). Thêm loại xe mới
  * thì sửa cả hai nơi, nếu không sẽ có chuyến tạo được trong code nhưng bị DB
  * từ chối.
  *

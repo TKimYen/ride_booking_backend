@@ -26,7 +26,7 @@ import java.time.LocalDateTime;
  * này không làm sai hoá đơn cũ.
  *
  * <p>{@code userId} là id bên auth_db, cố tình KHÔNG có khoá ngoại — hai database
- * tách rời, xem giải thích trong {@code database/03_booking_db.sql}. {@code userId}
+ * tách rời, xem giải thích trong {@code booking-service/src/main/resources/db/migration/V1__booking_schema.sql}. {@code userId}
  * NULL là đơn của khách vãng lai; khi đó {@code guestTokenHash} chứng minh quyền
  * với đơn (db.md mục B8).
  *

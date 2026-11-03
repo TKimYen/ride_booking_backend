@@ -2,8 +2,10 @@ package com.ridebooking.booking.repository;
 
 import com.ridebooking.booking.entity.Booking;
 import com.ridebooking.booking.enums.BookingStatus;
+import com.ridebooking.booking.enums.TripStatus;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -44,6 +46,38 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
 	Optional<Booking> findByBookingCodeAndContactPhone(String bookingCode, String contactPhone);
 
 	boolean existsByBookingCode(String bookingCode);
+
+	/** Mọi đơn của một chuyến theo trạng thái, không phân trang: dùng khi huỷ chuyến. */
+	List<Booking> findByTripIdAndStatusIn(Integer tripId, Collection<BookingStatus> statuses);
+
+	boolean existsByTripId(Integer tripId);
+
+	/** Số đơn theo trạng thái của một chuyến; mỗi dòng là [status, soLuong]. */
+	@Query("SELECT b.status, count(b) FROM Booking b WHERE b.trip.id = :tripId GROUP BY b.status")
+	List<Object[]> countByStatusOfTrip(@Param("tripId") Integer tripId);
+
+	/** Đơn PAID của mọi chuyến đã COMPLETED thành COMPLETED, dùng cho job định kỳ. */
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query("""
+			UPDATE Booking b
+			SET b.status = :completed
+			WHERE b.status = :paid
+			  AND b.trip.id IN (SELECT t.id FROM Trip t WHERE t.status = :tripCompleted)
+			""")
+	int completePaidBookingsOfCompletedTrips(@Param("completed") BookingStatus completed,
+			@Param("paid") BookingStatus paid,
+			@Param("tripCompleted") TripStatus tripCompleted);
+
+	/** Đơn PAID của một chuyến thành COMPLETED, dùng khi Admin bấm hoàn thành. */
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query("""
+			UPDATE Booking b
+			SET b.status = :completed
+			WHERE b.status = :paid AND b.trip.id = :tripId
+			""")
+	int completePaidBookingsOfTrip(@Param("tripId") Integer tripId,
+			@Param("completed") BookingStatus completed,
+			@Param("paid") BookingStatus paid);
 
 	/**
 	 * Đánh dấu mọi đơn PENDING đã quá hạn thành EXPIRED trong một câu UPDATE.

@@ -25,6 +25,15 @@ class BookingRoutePredicateTest {
 
     @Test
     void adminBookingsIsRoutedToBookingService() {
+        assertBookingRouteCovers("/api/admin/bookings/**");
+    }
+
+    @Test
+    void adminAmenitiesIsRoutedToBookingService() {
+        assertBookingRouteCovers("/api/admin/amenities/**");
+    }
+
+    private void assertBookingRouteCovers(String path) {
         List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions().collectList().block();
         assertThat(routes).isNotNull();
 
@@ -34,8 +43,8 @@ class BookingRoutePredicateTest {
                 .orElseThrow(() -> new AssertionError("Không có route booking-service"));
 
         assertThat(bookingRoute.getPredicates())
-                .as("route booking-service phải khớp /api/admin/bookings/**")
+                .as("route booking-service phải khớp " + path)
                 .anySatisfy(predicate -> assertThat(predicate.getArgs().values())
-                        .anyMatch(value -> value.contains("/api/admin/bookings/**")));
+                        .anyMatch(value -> value.contains(path)));
     }
 }

@@ -1,16 +1,28 @@
 package com.ridebooking.booking.config;
 
+import com.ridebooking.booking.entity.Amenity;
 import com.ridebooking.booking.entity.BusCompany;
+import com.ridebooking.booking.entity.CancellationRule;
+import com.ridebooking.booking.entity.CompanyImage;
+import com.ridebooking.booking.entity.CompanyPolicy;
 import com.ridebooking.booking.entity.Location;
+import com.ridebooking.booking.entity.Promotion;
 import com.ridebooking.booking.entity.Route;
 import com.ridebooking.booking.entity.StopPoint;
 import com.ridebooking.booking.entity.Trip;
 import com.ridebooking.booking.entity.TripSeat;
 import com.ridebooking.booking.enums.BusType;
+import com.ridebooking.booking.enums.DiscountType;
 import com.ridebooking.booking.enums.PointType;
+import com.ridebooking.booking.enums.PolicyType;
 import com.ridebooking.booking.enums.TripStatus;
+import com.ridebooking.booking.repository.AmenityRepository;
 import com.ridebooking.booking.repository.BusCompanyRepository;
+import com.ridebooking.booking.repository.CancellationRuleRepository;
+import com.ridebooking.booking.repository.CompanyImageRepository;
+import com.ridebooking.booking.repository.CompanyPolicyRepository;
 import com.ridebooking.booking.repository.LocationRepository;
+import com.ridebooking.booking.repository.PromotionRepository;
 import com.ridebooking.booking.repository.RouteRepository;
 import com.ridebooking.booking.repository.StopPointRepository;
 import com.ridebooking.booking.repository.TripRepository;
@@ -44,7 +56,9 @@ import org.springframework.transaction.annotation.Transactional;
  * ghế sẽ có hai nơi khai, và mỗi lần sửa sơ đồ là một lần dữ liệu mẫu lệch —
  * đúng loại lỗi đã xảy ra khi {@code LIMOUSINE_29} sinh 49 ghế.
  *
- * <p>Chạy lại nhiều lần vẫn an toàn: nếu đã có địa điểm thì bỏ qua, không nhân bản.
+ * <p>Chạy lại nhiều lần vẫn an toàn. Mỗi nhóm dữ liệu tự kiểm tra bảng của mình:
+ * database đã có chuyến từ trước vẫn nhận được ảnh, tiện ích, chính sách, khuyến mãi
+ * mà không nhân bản phần đã có.
  */
 @Component
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
@@ -65,6 +79,11 @@ public class SeedDataLoader implements ApplicationRunner {
     private final TripSeatRepository tripSeatRepository;
     private final StopPointRepository stopPointRepository;
     private final SeatGenerator seatGenerator;
+    private final AmenityRepository amenityRepository;
+    private final CompanyImageRepository companyImageRepository;
+    private final CompanyPolicyRepository companyPolicyRepository;
+    private final CancellationRuleRepository cancellationRuleRepository;
+    private final PromotionRepository promotionRepository;
 
     public SeedDataLoader(LocationRepository locationRepository,
                           BusCompanyRepository busCompanyRepository,
@@ -72,7 +91,12 @@ public class SeedDataLoader implements ApplicationRunner {
                           TripRepository tripRepository,
                           TripSeatRepository tripSeatRepository,
                           StopPointRepository stopPointRepository,
-                          SeatGenerator seatGenerator) {
+                          SeatGenerator seatGenerator,
+                          AmenityRepository amenityRepository,
+                          CompanyImageRepository companyImageRepository,
+                          CompanyPolicyRepository companyPolicyRepository,
+                          CancellationRuleRepository cancellationRuleRepository,
+                          PromotionRepository promotionRepository) {
         this.locationRepository = locationRepository;
         this.busCompanyRepository = busCompanyRepository;
         this.routeRepository = routeRepository;
@@ -80,15 +104,27 @@ public class SeedDataLoader implements ApplicationRunner {
         this.tripSeatRepository = tripSeatRepository;
         this.stopPointRepository = stopPointRepository;
         this.seatGenerator = seatGenerator;
+        this.amenityRepository = amenityRepository;
+        this.companyImageRepository = companyImageRepository;
+        this.companyPolicyRepository = companyPolicyRepository;
+        this.cancellationRuleRepository = cancellationRuleRepository;
+        this.promotionRepository = promotionRepository;
     }
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
         if (locationRepository.count() > 0) {
-            log.info("Bỏ qua seed: locations đã có dữ liệu");
-            return;
+            log.info("Bỏ qua seed chuyến xe: locations đã có dữ liệu");
+        } else {
+            seedCatalog();
         }
+        seedCompanyContent();
+        seedFeaturedRoutes();
+        seedPromotions();
+    }
+
+    private void seedCatalog() {
         log.info("Bắt đầu nạp dữ liệu mẫu");
 
         Map<String, Location> locations = seedLocations();
@@ -112,6 +148,133 @@ public class SeedDataLoader implements ApplicationRunner {
         }
         log.info("Xong seed: {} chuyến, {} ghế, {} tuyến, {} địa điểm, {} nhà xe",
                 tripCount, seatCount, routes.size(), locations.size(), companies.size());
+    }
+
+    /** Ảnh, tiện ích, chính sách và mốc hoàn tiền; bỏ qua nhóm nào đã có dữ liệu. */
+    private void seedCompanyContent() {
+        List<BusCompany> companies = busCompanyRepository.findAll();
+        List<Amenity> amenities = amenityRepository.count() == 0 ? seedAmenities() : List.of();
+        boolean addImages = companyImageRepository.count() == 0;
+        boolean addPolicies = companyPolicyRepository.count() == 0;
+        boolean addRules = cancellationRuleRepository.count() == 0;
+
+        for (int index = 0; index < companies.size(); index++) {
+            BusCompany company = companies.get(index);
+            if (!amenities.isEmpty()) {
+                // Mọi nhà xe có 4 tiện ích đầu, nhà xe sau có thêm dần để các trang khác nhau.
+                company.getAmenities().addAll(amenities.subList(0, Math.min(4 + index % 3, amenities.size())));
+            }
+            if (addImages) {
+                seedImages(company);
+            }
+            if (addPolicies) {
+                seedPolicies(company);
+            }
+            if (addRules) {
+                cancellationRuleRepository.saveAll(List.of(
+                        new CancellationRule(company, 72, 90),
+                        new CancellationRule(company, 24, 50),
+                        new CancellationRule(company, 6, 20)));
+            }
+        }
+    }
+
+    private List<Amenity> seedAmenities() {
+        return amenityRepository.saveAll(List.of(
+                new Amenity("WIFI", "Wi-Fi miễn phí", "wifi"),
+                new Amenity("WATER", "Nước uống", "droplet"),
+                new Amenity("AIR_CONDITIONER", "Điều hoà", "snowflake"),
+                new Amenity("BLANKET", "Chăn đắp", "bed"),
+                new Amenity("CHARGER", "Ổ cắm sạc", "plug"),
+                new Amenity("TOILET", "Nhà vệ sinh trên xe", "toilet"),
+                new Amenity("TV", "Màn hình giải trí", "tv")));
+    }
+
+    /** Ảnh giữ chỗ từ picsum.photos: {@code seed} cố định nên mỗi lần tải vẫn ra cùng một ảnh. */
+    private void seedImages(BusCompany company) {
+        String[] captions = {"Ngoại thất xe", "Khoang hành khách", "Ghế ngồi"};
+        for (int order = 1; order <= captions.length; order++) {
+            CompanyImage image = new CompanyImage();
+            image.setCompany(company);
+            image.setImageUrl("https://picsum.photos/seed/xego-company-" + company.getId() + "-" + order + "/800/500");
+            image.setCaption(captions[order - 1]);
+            image.setSortOrder(order);
+            companyImageRepository.save(image);
+        }
+    }
+
+    private void seedPolicies(BusCompany company) {
+        Object[][] rows = {
+                {PolicyType.CANCELLATION, "Hoàn huỷ vé",
+                        "Huỷ trước giờ khởi hành từ 72 giờ hoàn 90%, từ 24 giờ hoàn 50%, từ 6 giờ hoàn 20%. Dưới 6 giờ không hoàn tiền."},
+                {PolicyType.LUGGAGE, "Hành lý",
+                        "Mỗi khách được mang miễn phí 20kg hành lý ký gửi và 7kg hành lý xách tay."},
+                {PolicyType.CHILDREN, "Trẻ em",
+                        "Trẻ dưới 5 tuổi ngồi cùng người lớn được miễn vé. Từ 5 tuổi trở lên mua vé như người lớn."},
+                {PolicyType.PET, "Thú cưng",
+                        "Thú cưng phải ở trong lồng kín và báo trước với nhà xe khi đặt vé."},
+                {PolicyType.DOCUMENT, "Giấy tờ",
+                        "Xuất trình mã vé và giấy tờ tuỳ thân khi lên xe."},
+        };
+        for (int order = 1; order <= rows.length; order++) {
+            CompanyPolicy policy = new CompanyPolicy();
+            policy.setCompany(company);
+            policy.setPolicyType((PolicyType) rows[order - 1][0]);
+            policy.setTitle((String) rows[order - 1][1]);
+            policy.setContent((String) rows[order - 1][2]);
+            policy.setSortOrder(order);
+            companyPolicyRepository.save(policy);
+        }
+    }
+
+    /** Đánh dấu tuyến nổi bật, trừ khi Admin hoặc lần seed trước đã chọn. */
+    private void seedFeaturedRoutes() {
+        if (routeRepository.existsByFeaturedTrue()) {
+            return;
+        }
+        List<String> featuredNames = List.of("Hà Nội - Sa Pa", "Hà Nội - Hạ Long", "Hà Nội - Đà Nẵng",
+                "Hồ Chí Minh - Đà Lạt", "Hồ Chí Minh - Nha Trang", "Hồ Chí Minh - Vũng Tàu");
+        for (Route route : routeRepository.findAll()) {
+            if (featuredNames.contains(route.getName())) {
+                route.setFeatured(true);
+                if (route.getImageUrl() == null) {
+                    route.setImageUrl("https://picsum.photos/seed/xego-route-" + route.getId() + "/800/500");
+                }
+            }
+        }
+    }
+
+    /** Năm mã đang hiệu lực 180 ngày tính từ lần seed. */
+    private void seedPromotions() {
+        if (promotionRepository.count() > 0) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        // Mã, tiêu đề, loại, giá trị, giảm tối đa, đơn tối thiểu, số lượt, nổi bật
+        Object[][] rows = {
+                {"XEGO10", "Giảm 10% cho mọi chuyến", DiscountType.PERCENT, "10", "100000", "0", null, true},
+                {"CHAOBANMOI", "Giảm 50.000đ cho chuyến đầu tiên", DiscountType.FIXED, "50000", null, "200000", 500, true},
+                {"CUOITUAN15", "Giảm 15% đi cuối tuần", DiscountType.PERCENT, "15", "150000", "300000", 300, true},
+                {"XANHGIUONG", "Giảm 100.000đ cho đơn từ 1 triệu", DiscountType.FIXED, "100000", null, "1000000", 200, false},
+                {"NHOM20", "Giảm 20% khi đặt nhiều ghế", DiscountType.PERCENT, "20", "300000", "800000", 100, false},
+        };
+        for (Object[] row : rows) {
+            Promotion promotion = new Promotion();
+            promotion.setCode((String) row[0]);
+            promotion.setTitle((String) row[1]);
+            promotion.setDescription("Áp dụng khi thanh toán trực tuyến. Mỗi đơn dùng một mã.");
+            promotion.setDiscountType((DiscountType) row[2]);
+            promotion.setDiscountValue(new BigDecimal((String) row[3]));
+            promotion.setMaxDiscount(row[4] == null ? null : new BigDecimal((String) row[4]));
+            promotion.setMinOrderValue(new BigDecimal((String) row[5]));
+            promotion.setStartsAt(now.minusDays(1));
+            promotion.setEndsAt(now.plusDays(180));
+            promotion.setUsageLimit((Integer) row[6]);
+            promotion.setUsedCount(0);
+            promotion.setFeatured((Boolean) row[7]);
+            promotion.setActive(true);
+            promotionRepository.save(promotion);
+        }
     }
 
     /** Thứ tự cố ý phổ biến trước, vì id nhỏ thì dropdown dễ kiểm thử. */

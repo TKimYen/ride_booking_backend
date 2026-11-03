@@ -5,7 +5,8 @@
 --  Dùng khi deploy thật (nên tắt spring.jpa.hibernate.ddl-auto=update),
 --  hoặc khi muốn dựng schema bằng tay thay vì để Hibernate tự tạo.
 --
---  psql -U postgres -d auth_db -f database/01_auth_db.sql
+--  Flyway tự chạy file này khi service khởi động. Đã chạy rồi thì KHÔNG sửa:
+--  đổi schema bằng file V2__...sql mới.
 -- =============================================================================
 
 -- --------------------------------------------------------------------- users

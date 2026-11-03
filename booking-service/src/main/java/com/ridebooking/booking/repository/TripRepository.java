@@ -4,12 +4,21 @@ import com.ridebooking.booking.entity.Trip;
 import com.ridebooking.booking.enums.TripStatus;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Truy vấn chuyến xe.
@@ -20,6 +29,52 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
  * Hibernate, nên ký tự đặc biệt trong từ khoá không sinh SQL.
  */
 public interface TripRepository extends JpaRepository<Trip, Integer>, JpaSpecificationExecutor<Trip> {
+
+    /** Nạp sẵn tuyến và nhà xe để dựng một trang chuyến mà không sinh N+1. */
+    @Override
+    @EntityGraph(attributePaths = {"route", "route.origin", "route.destination", "company"})
+    Page<Trip> findAll(Specification<Trip> spec, Pageable pageable);
+
+    /**
+     * Đọc trạng thái mới nhất từ DB, không qua cache của phiên làm việc. Luồng giữ
+     * ghế gọi lại sau khi có khoá ghế, để không bán vé của chuyến vừa bị huỷ.
+     */
+    @Query("SELECT t.status FROM Trip t WHERE t.id = :id")
+    Optional<TripStatus> findStatusById(@Param("id") Integer id);
+
+    /** Chuyển trạng thái có điều kiện; trả về 0 khi trạng thái hiện tại không còn là {@code from}. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Trip t
+            SET t.status = :to, t.updatedAt = :now
+            WHERE t.id = :id AND t.status = :from
+            """)
+    int transitionStatus(@Param("id") Integer id,
+                         @Param("from") TripStatus from,
+                         @Param("to") TripStatus to,
+                         @Param("now") LocalDateTime now);
+
+    /** Mọi chuyến đang chạy đã qua giờ đến thành COMPLETED, trong một câu UPDATE. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Trip t
+            SET t.status = :completed, t.updatedAt = :now
+            WHERE t.status = :active AND t.arrivalTime < :now
+            """)
+    int completeArrivedTrips(@Param("completed") TripStatus completed,
+                             @Param("active") TripStatus active,
+                             @Param("now") LocalDateTime now);
+
+    /** Giá cơ bản thấp nhất của các chuyến sắp chạy theo tuyến; mỗi dòng là [routeId, giá]. */
+    @Query("""
+            SELECT t.route.id, MIN(t.basePrice)
+            FROM Trip t
+            WHERE t.route.id IN :routeIds AND t.status = :status AND t.departureTime > :now
+            GROUP BY t.route.id
+            """)
+    List<Object[]> findMinPriceByRouteIds(@Param("routeIds") Collection<Integer> routeIds,
+                                          @Param("status") TripStatus status,
+                                          @Param("now") LocalDateTime now);
 
     /**
      * Bộ lọc của Trang Danh sách kết quả.
@@ -36,8 +91,8 @@ public interface TripRepository extends JpaRepository<Trip, Integer>, JpaSpecifi
             Integer companyId,
             LocalDateTime fromTime,
             LocalDateTime toTime,
-            java.math.BigDecimal minPrice,
-            java.math.BigDecimal maxPrice,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
             TripStatus status) {
 
         return (root, query, builder) -> {

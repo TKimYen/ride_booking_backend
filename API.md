@@ -528,7 +528,6 @@ JWT_SECRET=chuoi-tuy-chon-toi-thieu-32-ky-tu
 INTERNAL_API_KEY=khoa-noi-bo-tuy-chon
 JWT_EXPIRATION_MINUTES=15
 JWT_REFRESH_TOKEN_DAYS=7
-JPA_DDL_AUTO=update
 JPA_SHOW_SQL=true
 LOGIN_MAX_FAILED_ATTEMPTS=5
 LOGIN_LOCK_MINUTES=15
@@ -537,23 +536,23 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 
 Xem `.env.example` để có đầy đủ chú thích.
 
-### 7.1. Tạo schema bằng SQL (dùng cho production)
+### 7.1. Schema do Flyway quản lý
 
-Mặc định `JPA_DDL_AUTO=update` nên Hibernate tự tạo bảng — tiện cho local nhưng không
-nên dùng khi deploy thật. Khi đó đặt `JPA_DDL_AUTO=validate` (Hibernate chỉ kiểm tra
-schema khớp, không sửa) và chạy 2 script idempotent một lần:
+Không cần chạy SQL bằng tay. Khi khởi động, mỗi service tự chạy migration của mình:
 
-```bash
-# Trong container PostgreSQL
-psql -U postgres -d auth_db -f database/01_auth_db.sql
-psql -U postgres -d user_db -f database/02_user_db.sql
-psql -U postgres -d booking_db -f database/03_booking_db.sql
-```
+| Service           | Migration                                                           |
+| ----------------- | ------------------------------------------------------------------- |
+| `auth-service`    | `auth-service/src/main/resources/db/migration/V1__auth_schema.sql`       |
+| `user-service`    | `user-service/src/main/resources/db/migration/V1__user_schema.sql`       |
+| `booking-service` | `booking-service/src/main/resources/db/migration/V1__booking_schema.sql` |
 
-Script có sẵn: unique email không phân biệt hoa/thường, foreign key
-`refresh_tokens.user_id -> users.id` (ON DELETE CASCADE), CHECK bắt buộc
-`token_hash` đúng 64 ký tự hex, CHECK giới hạn `role` và `gender`,
-cùng index cho truy vấn phiên đang hoạt động và dọn token hết hạn.
+Hibernate chạy `ddl-auto=validate`: chỉ kiểm tra entity khớp schema, không tự sửa bảng.
+Thêm cột hoặc bảng thì viết file `V2__mo_ta.sql` mới, **không sửa file đã chạy** vì
+Flyway sẽ báo sai checksum và service không khởi động được.
+
+Database cũ do `ddl-auto=update` tạo vẫn dùng tiếp được: Flyway đặt mốc 0 rồi chạy V1,
+V1 idempotent nên chỉ bổ sung ràng buộc và index còn thiếu. Nếu dữ liệu cũ vi phạm một
+ràng buộc, service dừng và log nêu tên ràng buộc đó; sửa dữ liệu rồi khởi động lại.
 
 ### 7.2. Chạy service bằng Maven (không dùng Docker)
 
@@ -982,7 +981,36 @@ Các ca đặc biệt:
 API nội bộ `/api/internal/**` **không được route qua gateway** — chỉ service khác gọi
 được bằng `X-Internal-Key`.
 
-### 11.10. Chưa có API (đã có schema)
+### 11.10. Admin — Vòng đời chuyến xe (`role=ADMIN`)
+
+| Method | Endpoint                          | Mô tả                                                                 |
+| ------ | --------------------------------- | --------------------------------------------------------------------- |
+| GET    | `/api/admin/trips`                | Chuyến ở mọi trạng thái. Lọc: `status`, `originId`, `destinationId`, `companyId`, `from`, `to`, `page`, `size` |
+| GET    | `/api/admin/trips/{id}`           | Chi tiết, kèm số ghế và số đơn theo trạng thái                        |
+| POST   | `/api/admin/trips/{id}/complete`  | Chuyến và đơn `PAID` thành `COMPLETED`. Chưa khởi hành hoặc đã huỷ: 409 |
+| POST   | `/api/admin/trips/{id}/cancel`    | Trả ghế, huỷ đơn `PENDING`/`PAID`, trả danh sách đơn cần hoàn tiền. Đã hoàn thành: 409 |
+
+- Gọi lại `complete` hoặc `cancel` không lỗi; `cancel` vẫn trả đủ danh sách hoàn tiền.
+- **Huỷ chuyến chưa tự hoàn tiền:** `refunds` là danh sách để Admin hoàn trên cổng thanh toán.
+- `PUT /api/admin/trips/{id}` không đổi được trạng thái (409); bỏ trống `status` thì giữ nguyên.
+- Job `TripCompletionJob` chạy mỗi 5 phút, tự hoàn thành chuyến đã qua giờ đến.
+  Cấu hình: `app.booking.completion-job.enabled`, `app.booking.completion-job.interval-ms`.
+
+### 11.11. Thông tin nhà xe và tuyến phổ biến
+
+| Method          | Endpoint                                                   | Quyền | Mô tả                               |
+| --------------- | ---------------------------------------------------------- | ----- | ----------------------------------- |
+| GET             | `/api/bus-companies/{id}/profile`                          | Khách | Ảnh, tiện ích, chính sách, mốc hoàn tiền |
+| GET             | `/api/routes/popular?limit=8`                              | Khách | Tuyến nổi bật trước, rồi tuyến bán chạy, kèm `minPrice` |
+| POST/PUT/DELETE | `/api/admin/bus-companies/{id}/images[/{imageId}]`         | ADMIN | Ảnh nhà xe                          |
+| POST/PUT/DELETE | `/api/admin/bus-companies/{id}/policies[/{policyId}]`      | ADMIN | Chính sách                          |
+| POST/PUT/DELETE | `/api/admin/bus-companies/{id}/cancellation-rules[/{ruleId}]` | ADMIN | Mốc hoàn tiền; trùng số giờ: 409 |
+| PUT             | `/api/admin/bus-companies/{id}/amenities`                  | ADMIN | Đặt lại tiện ích: `{"amenityIds":[1,2]}` |
+| GET/POST/PUT/DELETE | `/api/admin/amenities[/{id}]`                          | ADMIN | Danh mục tiện ích; đang dùng thì không xoá được |
+
+Dữ liệu mẫu: đặt `SEED_ENABLED=true`. Ảnh mẫu là ảnh giữ chỗ từ `picsum.photos`.
+
+### 11.12. Chưa có API (đã có schema)
 
 File này chỉ liệt kê endpoint **đã chạy được**. Các endpoint dự kiến (dashboard
 `/api/admin/stats/*`, ghi đánh giá, profile nhà xe, khuyến mãi...) chưa được

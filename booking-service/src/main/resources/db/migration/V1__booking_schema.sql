@@ -3,7 +3,8 @@
 -- =============================================================================
 --  Script IDEMPOTENT: chạy lại nhiều lần vẫn an toàn.
 --
---  psql -U postgres -d booking_db -f database/03_booking_db.sql
+--  Flyway tự chạy file này khi service khởi động. Đã chạy rồi thì KHÔNG sửa:
+--  đổi schema bằng file V2__...sql mới.
 --
 --  -----------------------------------------------------------------------------
 --  QUYẾT ĐỊNH KIẾN TRÚC (chốt trước cho cả nhóm, xem db.md mục "B")

@@ -10,12 +10,14 @@ import java.time.LocalDateTime;
 public record PaymentResponse(
 
         @Schema(example = "5") Integer id,
-        @Schema(description = "VNPAY | MOMO | ZALOPAY", example = "VNPAY") String gateway,
+        @Schema(description = "Cổng thanh toán", example = "STRIPE",
+                allowableValues = {"STRIPE", "VNPAY", "MOMO", "ZALOPAY"}) String gateway,
         @Schema(example = "VNP1701234567") String transactionNo,
         @Schema(example = "500000.00") BigDecimal amount,
         @Schema(example = "NCB") String bankCode,
         @Schema(description = "Mã phản hồi của cổng. '00' = thành công", example = "00") String responseCode,
-        @Schema(description = "PENDING | SUCCESS | FAILED", example = "SUCCESS") String status,
+        @Schema(description = "REFUNDED: đã thành công rồi được hoàn tiền", example = "SUCCESS",
+                allowableValues = {"PENDING", "SUCCESS", "FAILED", "REFUNDED"}) String status,
         @Schema(example = "2026-10-02T10:15:30") LocalDateTime createdAt) {
 
     public static PaymentResponse from(Payment payment) {

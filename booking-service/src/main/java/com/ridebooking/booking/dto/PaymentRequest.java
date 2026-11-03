@@ -16,7 +16,8 @@ import jakarta.validation.constraints.Size;
 public record PaymentRequest(
 
         @NotBlank(message = "Cổng thanh toán không được bỏ trống")
-        @Schema(description = "VNPAY | MOMO | ZALOPAY", example = "VNPAY", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(description = "Cổng thanh toán", example = "STRIPE", requiredMode = Schema.RequiredMode.REQUIRED,
+                allowableValues = {"STRIPE", "VNPAY", "MOMO", "ZALOPAY"})
         String gateway,
 
         @Size(max = 50, message = "Mã ngân hàng tối đa 50 ký tự")

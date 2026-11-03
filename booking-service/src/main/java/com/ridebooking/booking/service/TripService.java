@@ -1,5 +1,6 @@
 package com.ridebooking.booking.service;
 
+import com.ridebooking.booking.dto.AdminTripDetailResponse;
 import com.ridebooking.booking.dto.PageResponse;
 import com.ridebooking.booking.dto.TripResponse;
 import com.ridebooking.booking.dto.TripSearchItemResponse;
@@ -9,6 +10,8 @@ import com.ridebooking.booking.enums.SeatStatus;
 import com.ridebooking.booking.enums.TripSort;
 import com.ridebooking.booking.enums.TripStatus;
 import com.ridebooking.booking.exception.ResourceNotFoundException;
+import com.ridebooking.booking.enums.BookingStatus;
+import com.ridebooking.booking.repository.BookingRepository;
 import com.ridebooking.booking.repository.BusCompanyRepository;
 import com.ridebooking.booking.repository.RouteRepository;
 import com.ridebooking.booking.repository.TripRepository;
@@ -18,6 +21,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.data.domain.Page;
@@ -38,11 +42,49 @@ public class TripService {
 
     private final TripRepository tripRepository;
     private final TripSeatRepository tripSeatRepository;
+    private final BookingRepository bookingRepository;
 
     public TripService(TripRepository tripRepository,
-                       TripSeatRepository tripSeatRepository) {
+                       TripSeatRepository tripSeatRepository,
+                       BookingRepository bookingRepository) {
         this.tripRepository = tripRepository;
         this.tripSeatRepository = tripSeatRepository;
+        this.bookingRepository = bookingRepository;
+    }
+
+    /**
+     * Danh sách chuyến cho Admin: mọi trạng thái, khác {@link #search} chỉ có ACTIVE.
+     * Chuyến khởi hành muộn nhất lên trước.
+     *
+     * @param status {@code null} là mọi trạng thái
+     * @param from   ngày khởi hành sớm nhất, {@code null} là không chặn
+     * @param to     ngày khởi hành muộn nhất (tính cả ngày đó), {@code null} là không chặn
+     */
+    public PageResponse<TripSearchItemResponse> listForAdmin(TripStatus status, Integer originId,
+                                                             Integer destinationId, Integer companyId,
+                                                             LocalDate from, LocalDate to, int page, int size) {
+        if (from != null && to != null && to.isBefore(from)) {
+            throw new IllegalArgumentException("Ngày kết thúc phải từ ngày bắt đầu trở đi");
+        }
+        Specification<Trip> spec = TripRepository.matches(
+                originId, destinationId, companyId,
+                from == null ? null : from.atStartOfDay(),
+                to == null ? null : to.atTime(LocalTime.MAX),
+                null, null, status);
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE),
+                Sort.by(Sort.Direction.DESC, "departureTime"));
+        Page<Trip> result = tripRepository.findAll(spec, pageable);
+        return PageResponse.from(result, withSeatCounts(result.getContent()));
+    }
+
+    /** Chi tiết một chuyến ở mọi trạng thái, kèm số ghế và số đơn. */
+    public AdminTripDetailResponse getForAdmin(Integer id) {
+        Trip trip = requireById(id);
+        Map<String, Long> bookings = new LinkedHashMap<>();
+        for (Object[] row : bookingRepository.countByStatusOfTrip(id)) {
+            bookings.put(((BookingStatus) row[0]).name(), ((Number) row[1]).longValue());
+        }
+        return new AdminTripDetailResponse(withSeatCounts(List.of(trip)).getFirst(), bookings);
     }
 
     /**

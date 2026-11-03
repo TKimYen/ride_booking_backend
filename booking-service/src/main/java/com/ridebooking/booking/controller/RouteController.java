@@ -1,5 +1,6 @@
 package com.ridebooking.booking.controller;
 
+import com.ridebooking.booking.dto.PopularRouteResponse;
 import com.ridebooking.booking.dto.RouteResponse;
 import com.ridebooking.booking.service.RouteService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,6 +37,18 @@ public class RouteController {
             return routeService.listAll();
         }
         return routeService.touchingLocation(locationId);
+    }
+
+    @Operation(summary = "Tuyến phổ biến cho Trang chủ",
+            description = """
+                    Tuyến nổi bật lên trước, sau đó là tuyến bán nhiều vé. `minPrice` là giá cơ bản
+                    thấp nhất trong các chuyến sắp chạy, null khi tuyến chưa có chuyến.
+                    """)
+    @GetMapping("/popular")
+    public List<PopularRouteResponse> popular(
+            @Parameter(description = "Số tuyến tối đa, từ 1 đến 20", example = "8")
+            @RequestParam(defaultValue = "8") int limit) {
+        return routeService.popular(limit);
     }
 
     @Operation(summary = "Tuyến đi ra từ một địa điểm",

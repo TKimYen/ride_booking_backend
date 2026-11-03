@@ -11,6 +11,7 @@ import com.ridebooking.booking.enums.SeatStatus;
 import com.ridebooking.booking.enums.TripStatus;
 import com.ridebooking.booking.exception.ConflictException;
 import com.ridebooking.booking.exception.ResourceNotFoundException;
+import com.ridebooking.booking.repository.BookingRepository;
 import com.ridebooking.booking.repository.BusCompanyRepository;
 import com.ridebooking.booking.repository.RouteRepository;
 import com.ridebooking.booking.repository.TripRepository;
@@ -40,17 +41,20 @@ public class TripAdminService {
     private final RouteRepository routeRepository;
     private final BusCompanyRepository busCompanyRepository;
     private final SeatGenerator seatGenerator;
+    private final BookingRepository bookingRepository;
 
     public TripAdminService(TripRepository tripRepository,
                             TripSeatRepository tripSeatRepository,
                             RouteRepository routeRepository,
                             BusCompanyRepository busCompanyRepository,
-                            SeatGenerator seatGenerator) {
+                            SeatGenerator seatGenerator,
+                            BookingRepository bookingRepository) {
         this.tripRepository = tripRepository;
         this.tripSeatRepository = tripSeatRepository;
         this.routeRepository = routeRepository;
         this.busCompanyRepository = busCompanyRepository;
         this.seatGenerator = seatGenerator;
+        this.bookingRepository = bookingRepository;
     }
 
     public TripResponse create(TripRequest request) {
@@ -79,6 +83,16 @@ public class TripAdminService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chuyến xe với id " + id));
         BusType busType = parseBusType(request.busType());
         requireArrivalAfterDeparture(request.departureTime(), request.arrivalTime());
+        // Không có status thì giữ nguyên. Nếu coi như ACTIVE, một lần sửa giờ chạy sẽ
+        // âm thầm mở bán lại chuyến đã huỷ.
+        TripStatus status = request.status() == null || request.status().isBlank()
+                ? trip.getStatus()
+                : parseStatus(request.status());
+        // Đổi trạng thái ở đây sẽ bỏ qua việc trả ghế và xử lý đơn.
+        if (status != trip.getStatus()) {
+            throw new ConflictException("Không đổi trạng thái chuyến bằng API sửa, hãy dùng "
+                    + "/api/admin/trips/{id}/cancel hoặc /api/admin/trips/{id}/complete");
+        }
 
         // ĐỔI LOẠI XE SAU KHI ĐÃ CÓ KHÁCH là việc nguy hiểm: sơ đồ ghế cũ không
         // khớp loại xe mới. Từ chối thay vì âm thầm sinh lại ghế.
@@ -97,7 +111,6 @@ public class TripAdminService {
         trip.setDepartureTime(request.departureTime());
         trip.setArrivalTime(request.arrivalTime());
         trip.setBasePrice(request.basePrice());
-        trip.setStatus(parseStatus(request.status()));
         tripRepository.saveAndFlush(trip);
 
         return TripResponse.from(trip, countSeats(id));
@@ -114,6 +127,10 @@ public class TripAdminService {
         Trip trip = tripRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chuyến xe với id " + id));
         requireNoSeatsTaken(id);
+        // Huỷ chuyến trả ghế về AVAILABLE nhưng vẫn giữ đơn làm lịch sử.
+        if (bookingRepository.existsByTripId(id)) {
+            throw new ConflictException("Chuyến đã có đơn đặt vé nên không thể xoá");
+        }
         tripRepository.delete(trip);
     }
 
