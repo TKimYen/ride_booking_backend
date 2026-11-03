@@ -65,6 +65,7 @@ public class SecurityConfig {
             "/api/trips/**",
             "/api/seats/**",
             "/api/stop-points/**",
+            "/api/promotions/**",
             "/api/reviews/**");
 
     /** Request vào một đơn cụ thể có kèm header token khách vãng lai. */
@@ -102,7 +103,7 @@ public class SecurityConfig {
                         // vé vào tài khoản thì luôn cần JWT; khai TRƯỚC rule permitAll.
                         .requestMatchers(HttpMethod.GET, "/api/bookings").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/bookings/claim").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/bookings", "/api/bookings/lookup").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/bookings", "/api/bookings/lookup", "/api/promotions/validate").permitAll()
                         // Xem/thanh toán/huỷ một đơn: mở khi có X-Guest-Token, service tự
                         // so token với hash. Không có header thì vẫn đòi JWT -> 401 rõ ràng.
                         .requestMatchers(GUEST_BOOKING_REQUEST).permitAll()

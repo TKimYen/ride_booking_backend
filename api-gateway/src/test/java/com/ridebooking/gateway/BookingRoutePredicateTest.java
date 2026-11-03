@@ -33,6 +33,12 @@ class BookingRoutePredicateTest {
         assertBookingRouteCovers("/api/admin/amenities/**");
     }
 
+    @Test
+    void promotionsAreRoutedToBookingService() {
+        assertBookingRouteCovers("/api/promotions/**");
+        assertBookingRouteCovers("/api/admin/promotions/**");
+    }
+
     private void assertBookingRouteCovers(String path) {
         List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions().collectList().block();
         assertThat(routes).isNotNull();

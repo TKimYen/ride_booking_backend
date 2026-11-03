@@ -46,4 +46,22 @@ public interface PromotionRepository extends JpaRepository<Promotion, Integer> {
 			ORDER BY p.endsAt ASC
 			""")
 	List<Promotion> findFeatured(@Param("now") LocalDateTime now);
+
+	/** Danh sách mã đang hiệu lực trên toàn hệ thống (trang Ưu đãi). */
+	@Query("""
+			SELECT p FROM Promotion p
+			WHERE p.active = true
+			  AND p.startsAt <= :now AND p.endsAt > :now
+			  AND (p.usageLimit IS NULL OR p.usedCount < p.usageLimit)
+			ORDER BY p.endsAt ASC
+			""")
+	List<Promotion> findAllActiveUsable(@Param("now") LocalDateTime now);
+
+	/** Danh sách mã cho trang quản trị Admin, mã mới nhất xếp trước. */
+	@Query("SELECT p FROM Promotion p ORDER BY p.id DESC")
+	List<Promotion> findAllForAdmin();
+
+	/** Kiểm tra xem mã đã tồn tại ở bản ghi khác hay chưa (dùng khi thêm/sửa). */
+	@Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM Promotion p WHERE UPPER(p.code) = UPPER(:code) AND (:id IS NULL OR p.id <> :id)")
+	boolean existsByCodeIgnoreCaseAndIdNot(@Param("code") String code, @Param("id") Integer id);
 }

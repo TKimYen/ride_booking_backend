@@ -50,5 +50,15 @@ public record HoldSeatsRequest(
         @Size(max = 255, message = "Email tối đa 255 ký tự")
         @Schema(description = "Bỏ trống thì lấy email từ token đăng nhập. BẮT BUỘC với khách vãng lai",
                 example = "a@example.com")
-        String contactEmail) {
+        String contactEmail,
+
+        @Size(max = 30, message = "Mã khuyến mãi tối đa 30 ký tự")
+        @Schema(description = "Mã khuyến mãi (tuỳ chọn)", example = "HE2026")
+        String promotionCode) {
+
+    public HoldSeatsRequest(Integer tripId, List<Integer> seatIds, Integer pickupPointId,
+                            Integer dropoffPointId, String contactName, String contactPhone,
+                            String contactEmail) {
+        this(tripId, seatIds, pickupPointId, dropoffPointId, contactName, contactPhone, contactEmail, null);
+    }
 }
