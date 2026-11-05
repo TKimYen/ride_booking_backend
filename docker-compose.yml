@@ -20,7 +20,7 @@ x-common-env: &common-env
   # Khoá gọi API nội bộ giữa các service
   INTERNAL_API_KEY: ${INTERNAL_API_KEY:-ride-booking-internal-dev-key}
   # Danh sách origin được phép gọi API (phân cách bằng dấu phẩy, không dùng *)
-  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:5174}
   # Link gửi trong email (verify / reset password / đổi email) — frontend.
   # Production đổi thành domain thật.
   APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:5173}
@@ -365,7 +365,7 @@ services:
       PAYMENT_SERVICE_URI: http://payment-service:8084
       # CORS do gateway chặn. Dùng chung biến với auth/user-service để chỉ
       # khai báo danh sách domain một lần. KHÔNG dùng "*".
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:5174}
       # TCP peer tin cậy. KHÔNG khớp thì gateway xoá X-Forwarded-For và KHÔNG ghi
       # IP thật, khiến mọi người dùng chung một IP. Production sau nginx/ALB thì
       # đổi sang dải IP của proxy đó.
