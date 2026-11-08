@@ -1,47 +1,74 @@
 package com.ridebooking.booking.service;
 
 import com.ridebooking.booking.client.UserProfileClient;
+import com.ridebooking.booking.dto.CompanyRatingResponse;
 import com.ridebooking.booking.dto.PageResponse;
+import com.ridebooking.booking.dto.ReviewRequest;
 import com.ridebooking.booking.dto.ReviewResponse;
 import com.ridebooking.booking.dto.ReviewSummaryResponse;
+import com.ridebooking.booking.dto.ReviewUpdateRequest;
+import com.ridebooking.booking.entity.Booking;
 import com.ridebooking.booking.entity.Review;
-import com.ridebooking.booking.entity.Trip;
+import com.ridebooking.booking.enums.BookingStatus;
+import com.ridebooking.booking.exception.ConflictException;
 import com.ridebooking.booking.exception.ResourceNotFoundException;
+import com.ridebooking.booking.repository.BookingRepository;
+import com.ridebooking.booking.repository.BusCompanyRepository;
 import com.ridebooking.booking.repository.ReviewRepository;
 import com.ridebooking.booking.repository.TripRepository;
 import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Danh sách và thống kê đánh giá — phần đánh giá nhà xe trên Trang chi tiết.
+ * Đánh giá nhà xe [3.4].
  *
- * <p>Giai đoạn 1 chỉ ĐỌC. Viết đánh giá cần xác nhận khách đã đi chuyến đó, mà
- * điều đó lấy từ {@code bookings} — thuộc Giai đoạn 2.
+ * <p>Quy tắc viết đánh giá:
+ * <ul>
+ *   <li>chỉ viết cho đơn của chính mình và đơn đã {@code COMPLETED} ("Đã đi");</li>
+ *   <li>mỗi đơn một đánh giá, mỗi người một đánh giá cho một chuyến (UNIQUE ở DB);</li>
+ *   <li>chỉ chủ đánh giá được sửa; chủ đánh giá hoặc Admin được xoá;</li>
+ *   <li>Admin ẩn đánh giá vi phạm thay vì xoá — đánh giá ẩn không hiện và không
+ *       tính vào điểm trung bình, nhưng chủ đánh giá vẫn thấy nó ở trang của mình.</li>
+ * </ul>
+ *
+ * <p>Điểm nhà xe là trung bình mọi đánh giá không ẩn của các chuyến thuộc nhà xe đó.
  */
 @Service
 @Transactional(readOnly = true)
 public class ReviewService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final String FALLBACK_NAME = "Người dùng";
 
     private final ReviewRepository reviewRepository;
     private final TripRepository tripRepository;
+    private final BookingRepository bookingRepository;
+    private final BusCompanyRepository busCompanyRepository;
     private final UserProfileClient userProfileClient;
 
     public ReviewService(ReviewRepository reviewRepository,
                          TripRepository tripRepository,
+                         BookingRepository bookingRepository,
+                         BusCompanyRepository busCompanyRepository,
                          UserProfileClient userProfileClient) {
         this.reviewRepository = reviewRepository;
         this.tripRepository = tripRepository;
+        this.bookingRepository = bookingRepository;
+        this.busCompanyRepository = busCompanyRepository;
         this.userProfileClient = userProfileClient;
     }
+
+    // ------------------------------------------------------------------ đọc
 
     /**
      * Đánh giá của một chuyến, mới nhất trước.
@@ -50,19 +77,34 @@ public class ReviewService {
      */
     public PageResponse<ReviewResponse> listByTrip(Integer tripId, int page, int size, Integer viewerId) {
         requireTrip(tripId);
-        Page<Review> result = reviewRepository.findByTripId(tripId,
-                PageRequest.of(Math.max(page, 0), clampSize(size)));
+        Page<Review> result = reviewRepository.findByTripId(tripId, pageOf(page, size));
         return PageResponse.from(result, toResponses(result.getContent(), viewerId));
     }
 
-    /** Đánh giá của một người dùng, dùng cho trang "đánh giá của tôi". */
+    /** Đánh giá không ẩn của một nhà xe; {@code rating} null là mọi mức sao. */
+    public PageResponse<ReviewResponse> listByCompany(Integer companyId, Integer rating,
+                                                      int page, int size, Integer viewerId) {
+        requireCompany(companyId);
+        Page<Review> result = reviewRepository.findVisibleByCompany(companyId, validRatingOrNull(rating),
+                pageOf(page, size));
+        return PageResponse.from(result, toResponses(result.getContent(), viewerId));
+    }
+
+    /** Đánh giá của một người dùng, gồm cả đánh giá đã bị ẩn. */
     public PageResponse<ReviewResponse> listByUser(Integer userId, int page, int size) {
-        Page<Review> result = reviewRepository.findByUserIdWithTrip(userId,
-                PageRequest.of(Math.max(page, 0), clampSize(size), Sort.by(Sort.Direction.DESC, "createdAt")));
+        Page<Review> result = reviewRepository.findByUserIdWithTrip(userId, pageOf(page, size));
         return PageResponse.from(result, toResponses(result.getContent(), userId));
     }
 
-    /** Điểm trung bình và phân bố sao. Chuyến chưa có đánh giá thì trả 0 chứ không lỗi. */
+    /** Admin: mọi đánh giá, kể cả đã ẩn. */
+    public PageResponse<ReviewResponse> listForAdmin(Integer companyId, Integer rating, Boolean hidden,
+                                                     int page, int size) {
+        Page<Review> result = reviewRepository.findForAdmin(companyId, validRatingOrNull(rating), hidden,
+                pageOf(page, size));
+        return PageResponse.from(result, toResponses(result.getContent(), null));
+    }
+
+    /** Điểm trung bình và phân bố sao của chuyến. Chuyến chưa có đánh giá thì trả 0 chứ không lỗi. */
     public ReviewSummaryResponse summary(Integer tripId) {
         requireTrip(tripId);
 
@@ -79,13 +121,117 @@ public class ReviewService {
             }
             total = ((Number) summary.get(0)[1]).longValue();
         }
-
-        Map<Integer, Long> breakdown = new LinkedHashMap<>();
-        for (Object[] row : reviewRepository.ratingBreakdown(tripId)) {
-            breakdown.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue());
-        }
         return ReviewSummaryResponse.from(average, total,
-                ReviewSummaryResponse.withAllLevels(breakdown));
+                ReviewSummaryResponse.withAllLevels(toBreakdown(reviewRepository.ratingBreakdown(tripId))));
+    }
+
+    /** Điểm trung bình và phân bố sao của nhà xe — phần đầu tab "Đánh giá" trên Trang chi tiết. */
+    public ReviewSummaryResponse companySummary(Integer companyId) {
+        requireCompany(companyId);
+        Map<Integer, Long> breakdown = toBreakdown(reviewRepository.ratingBreakdownByCompany(companyId));
+        long total = breakdown.values().stream().mapToLong(Long::longValue).sum();
+        long weighted = breakdown.entrySet().stream()
+                .mapToLong(e -> e.getKey() * e.getValue()).sum();
+        BigDecimal average = total == 0 ? BigDecimal.ZERO
+                : BigDecimal.valueOf(weighted).divide(BigDecimal.valueOf(total), 4, java.math.RoundingMode.HALF_UP);
+        return ReviewSummaryResponse.from(average, total, ReviewSummaryResponse.withAllLevels(breakdown));
+    }
+
+    /**
+     * Điểm của nhiều nhà xe trong một câu truy vấn — dùng cho kết quả tìm kiếm và
+     * hồ sơ nhà xe. Nhà xe chưa có đánh giá thì có mặt trong map với {@link CompanyRatingResponse#NONE}.
+     */
+    public Map<Integer, CompanyRatingResponse> ratingsOf(Collection<Integer> companyIds) {
+        Map<Integer, CompanyRatingResponse> ratings = new HashMap<>();
+        if (companyIds.isEmpty()) {
+            return ratings;
+        }
+        for (Object[] row : reviewRepository.ratingByCompanyIds(companyIds)) {
+            ratings.put((Integer) row[0], CompanyRatingResponse.of((Number) row[1], ((Number) row[2]).longValue()));
+        }
+        companyIds.forEach(id -> ratings.putIfAbsent(id, CompanyRatingResponse.NONE));
+        return ratings;
+    }
+
+    // ------------------------------------------------------------------ ghi
+
+    /**
+     * Viết đánh giá cho một đơn đã đi.
+     *
+     * <p>Đơn của người khác trả 404 chứ không 403: không để lộ id đơn nào đang tồn tại.
+     */
+    @Transactional
+    public ReviewResponse create(Integer userId, ReviewRequest request) {
+        Booking booking = bookingRepository.findByIdAndUserId(request.bookingId(), userId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy đơn với id " + request.bookingId()));
+        if (booking.getStatus() != BookingStatus.COMPLETED) {
+            throw new ConflictException("Bạn chỉ đánh giá được chuyến mình đã đi");
+        }
+        Integer tripId = booking.getTrip().getId();
+        if (reviewRepository.existsByBookingId(booking.getId())
+                || reviewRepository.existsByUserIdAndTripId(userId, tripId)) {
+            throw new ConflictException("Bạn đã đánh giá chuyến này, hãy sửa đánh giá cũ");
+        }
+
+        Review review = new Review();
+        review.setUserId(userId);
+        review.setBooking(booking);
+        review.setTrip(booking.getTrip());
+        review.setCompany(booking.getTrip().getCompany());
+        review.setRating(request.rating());
+        review.setComment(normalizeComment(request.comment()));
+        try {
+            review = reviewRepository.saveAndFlush(review);
+        } catch (DataIntegrityViolationException e) {
+            // Hai tab bấm "Gửi" cùng lúc: kiểm tra ở trên đều qua, UNIQUE ở DB chặn lần hai.
+            throw new ConflictException("Bạn đã đánh giá chuyến này, hãy sửa đánh giá cũ");
+        }
+        return toResponse(review, userId);
+    }
+
+    /** Chủ đánh giá sửa điểm và bình luận. Admin không sửa nội dung của khách, chỉ ẩn. */
+    @Transactional
+    public ReviewResponse update(Integer userId, Integer reviewId, ReviewUpdateRequest request) {
+        Review review = requireReview(reviewId);
+        if (!review.getUserId().equals(userId)) {
+            throw new AccessDeniedException("Bạn không thể sửa đánh giá của người khác");
+        }
+        review.setRating(request.rating());
+        review.setComment(normalizeComment(request.comment()));
+        return toResponse(reviewRepository.saveAndFlush(review), userId);
+    }
+
+    /** Chủ đánh giá hoặc Admin xoá. Xoá xong thì đơn đó lại được viết đánh giá mới. */
+    @Transactional
+    public void delete(Integer userId, boolean isAdmin, Integer reviewId) {
+        Review review = requireReview(reviewId);
+        if (!isAdmin && !review.getUserId().equals(userId)) {
+            throw new AccessDeniedException("Bạn không thể xoá đánh giá của người khác");
+        }
+        reviewRepository.delete(review);
+    }
+
+    /** Admin ẩn / hiện lại một đánh giá. Gọi lại với cùng giá trị không lỗi. */
+    @Transactional
+    public ReviewResponse setHidden(Integer reviewId, boolean hidden) {
+        Review review = requireReview(reviewId);
+        review.setHidden(hidden);
+        return toResponse(reviewRepository.saveAndFlush(review), null);
+    }
+
+    /** id các đơn trong danh sách đã có đánh giá. */
+    public java.util.Set<Integer> reviewedBookingIds(Collection<Integer> bookingIds) {
+        if (bookingIds.isEmpty()) {
+            return java.util.Set.of();
+        }
+        return new java.util.HashSet<>(reviewRepository.findReviewedBookingIds(bookingIds));
+    }
+
+    // ------------------------------------------------------------------ nội bộ
+
+    private ReviewResponse toResponse(Review review, Integer viewerId) {
+        return toResponses(List.of(review), viewerId).getFirst();
     }
 
     /**
@@ -100,22 +246,54 @@ public class ReviewService {
             return List.of();
         }
         Map<Integer, String> names = userProfileClient.fetchDisplayNames(
-                reviews.stream().map(Review::getUserId).toList());
+                reviews.stream().map(Review::getUserId).distinct().toList());
         return reviews.stream()
                 .map(review -> ReviewResponse.from(review,
-                        names.getOrDefault(review.getUserId(), "Người dùng"), viewerId))
+                        names.getOrDefault(review.getUserId(), FALLBACK_NAME), viewerId))
                 .toList();
     }
 
-    private Trip requireTrip(Integer tripId) {
-        return tripRepository.findById(tripId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chuyến xe với id " + tripId));
+    private static Map<Integer, Long> toBreakdown(List<Object[]> rows) {
+        Map<Integer, Long> breakdown = new LinkedHashMap<>();
+        for (Object[] row : rows) {
+            breakdown.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue());
+        }
+        return breakdown;
     }
 
-    private int clampSize(int size) {
-        if (size < 1) {
-            return 10;
+    /** Bình luận toàn khoảng trắng lưu là null, để trang hiện "Không có bình luận". */
+    private static String normalizeComment(String comment) {
+        if (comment == null) {
+            return null;
         }
-        return Math.min(size, MAX_PAGE_SIZE);
+        String trimmed = comment.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /** Mức sao ngoài 1..5 coi như không lọc — đây là tham số tiện ích của trang. */
+    private static Integer validRatingOrNull(Integer rating) {
+        return rating != null && rating >= 1 && rating <= 5 ? rating : null;
+    }
+
+    private Review requireReview(Integer reviewId) {
+        return reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá với id " + reviewId));
+    }
+
+    private void requireTrip(Integer tripId) {
+        if (!tripRepository.existsById(tripId)) {
+            throw new ResourceNotFoundException("Không tìm thấy chuyến xe với id " + tripId);
+        }
+    }
+
+    private void requireCompany(Integer companyId) {
+        if (!busCompanyRepository.existsById(companyId)) {
+            throw new ResourceNotFoundException("Không tìm thấy nhà xe với id " + companyId);
+        }
+    }
+
+    private static PageRequest pageOf(int page, int size) {
+        int safeSize = size < 1 ? 10 : Math.min(size, MAX_PAGE_SIZE);
+        return PageRequest.of(Math.max(page, 0), safeSize);
     }
 }

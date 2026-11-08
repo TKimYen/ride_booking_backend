@@ -1,10 +1,12 @@
 package com.ridebooking.booking.dto;
 
+import com.ridebooking.booking.enums.BusType;
 import com.ridebooking.booking.enums.TripSort;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 /**
  * Bộ lọc cho Trang Danh sách kết quả và API tìm kiếm chuyến.
@@ -50,7 +52,41 @@ public record TripSearchRequest(
                 aliases departureTimeAsc/departureTimeDesc.""",
                 allowableValues = {"departureAsc", "departureDesc", "priceAsc", "priceDesc", "newest"},
                 example = "priceAsc")
-        String sort) {
+        String sort,
+
+        @Schema(description = "Nhiều nhà xe cùng lúc; gộp với companyId nếu có cả hai", example = "[1, 3]")
+        List<Integer> companyIds,
+
+        @Schema(description = "Loại xe, chọn nhiều", example = "[\"LIMOUSINE_29\"]")
+        List<BusType> busTypes,
+
+        @Schema(description = "Tên điểm đón; chuyến có ít nhất một điểm đón trùng tên là khớp",
+                example = "[\"Bến xe Mỹ Đình\"]")
+        List<String> pickupPoints,
+
+        @Schema(description = "Tên điểm trả; chuyến có ít nhất một điểm trả trùng tên là khớp",
+                example = "[\"Bến xe Sa Pa\"]")
+        List<String> dropoffPoints) {
+
+    /** Bộ lọc chỉ có các trường cũ — giữ cho nơi gọi chưa dùng bộ lọc mới. */
+    public TripSearchRequest(Integer originId, Integer destinationId, Integer companyId, LocalDate travelDate,
+                             LocalTime earliestDeparture, LocalTime latestDeparture,
+                             BigDecimal minPrice, BigDecimal maxPrice, String sort) {
+        this(originId, destinationId, companyId, travelDate, earliestDeparture, latestDeparture,
+                minPrice, maxPrice, sort, null, null, null, null);
+    }
+
+    /** {@code companyId} và {@code companyIds} gộp lại; rỗng là không lọc theo nhà xe. */
+    public List<Integer> allCompanyIds() {
+        java.util.LinkedHashSet<Integer> ids = new java.util.LinkedHashSet<>();
+        if (companyId != null) {
+            ids.add(companyId);
+        }
+        if (companyIds != null) {
+            companyIds.stream().filter(java.util.Objects::nonNull).forEach(ids::add);
+        }
+        return List.copyOf(ids);
+    }
 
     /** Kiểm tra giá trị đã chuẩn hoá qua allowlist. */
     public TripSort sortOrDefault() {

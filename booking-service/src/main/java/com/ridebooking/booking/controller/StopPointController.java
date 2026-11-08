@@ -10,6 +10,7 @@ import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -27,6 +28,19 @@ public class StopPointController {
 
     public StopPointController(StopPointService stopPointService) {
         this.stopPointService = stopPointService;
+    }
+
+    @Operation(summary = "Tên điểm đón / trả để lọc (Trang Danh sách kết quả)",
+            description = """
+                    Tên khác nhau, sắp theo ABC, của các chuyến đang bán khớp tuyến và ngày.
+                    Không có `travelDate` thì lấy mọi chuyến chưa khởi hành.
+                    """)
+    @GetMapping("/options")
+    public com.ridebooking.booking.dto.StopPointOptionsResponse options(
+            @RequestParam(required = false) Integer originId,
+            @RequestParam(required = false) Integer destinationId,
+            @RequestParam(required = false) java.time.LocalDate travelDate) {
+        return stopPointService.options(originId, destinationId, travelDate);
     }
 
     @Operation(summary = "Điểm dừng của một chuyến",

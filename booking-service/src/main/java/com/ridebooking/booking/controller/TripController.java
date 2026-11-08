@@ -48,6 +48,10 @@ public class TripController {
                     `travelDate` thì lấy hôm nay — giống cách người dùng hiểu khi gõ
                     "chuyến sau 6h chiều".
 
+                    **Bộ lọc [4.4].** companyIds, busTypes, pickupPoints, dropoffPoints
+                    nhận nhiều giá trị; trong một bộ lọc là HOẶC, giữa các bộ lọc là VÀ.
+                    Mỗi dòng kèm rating / ratingCount của nhà xe.
+
                     **Sắp xếp.** Chỉ nhận 5 giá trị trong allowlist; giá trị khác rơi về
                     mặc định thay vì lỗi 400, vì đây là tham số tiện ích của trang.
                     """)
@@ -69,14 +73,37 @@ public class TripController {
             @Parameter(description = "Giá cao nhất") @RequestParam(required = false) java.math.BigDecimal maxPrice,
             @Parameter(description = "Cách sắp xếp", example = "priceAsc")
             @RequestParam(required = false) String sort,
+            @Parameter(description = "Nhiều nhà xe: companyIds=1&companyIds=3 hoặc companyIds=1,3")
+            @RequestParam(required = false) List<Integer> companyIds,
+            @Parameter(description = "Loại xe, chọn nhiều: busTypes=LIMOUSINE_29&busTypes=SLEEPER_45")
+            @RequestParam(required = false) List<BusType> busTypes,
+            @Parameter(description = "Tên điểm đón, chọn nhiều (lấy từ /api/stop-points/options)")
+            @RequestParam(required = false) List<String> pickupPoints,
+            @Parameter(description = "Tên điểm trả, chọn nhiều (lấy từ /api/stop-points/options)")
+            @RequestParam(required = false) List<String> dropoffPoints,
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Số dòng mỗi trang, tối đa 100")
             @RequestParam(defaultValue = "10") int size) {
 
         TripSearchRequest request = new TripSearchRequest(
                 originId, destinationId, companyId, travelDate,
-                earliestDeparture, latestDeparture, minPrice, maxPrice, sort);
+                earliestDeparture, latestDeparture, minPrice, maxPrice, sort,
+                companyIds, busTypes, pickupPoints, dropoffPoints);
         return tripService.search(request, page, size);
+    }
+
+    @Operation(summary = "Chi tiết chuyến dạng một dòng kết quả",
+            description = """
+                    Như /{id} nhưng kèm số ghế trống, điểm nhà xe và điểm đón/trả đầu-cuối —
+                    đúng hình dạng một dòng của API tìm kiếm, để Trang chi tiết dùng chung
+                    thẻ chuyến với Trang Danh sách kết quả.
+                    """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy chuyến")})
+    @GetMapping("/{id}/detail")
+    public TripSearchItemResponse getDetail(@PathVariable Integer id) {
+        return tripService.getItemById(id);
     }
 
     @Operation(summary = "Chi tiết chuyến (Trang Thông tin chi tiết)",

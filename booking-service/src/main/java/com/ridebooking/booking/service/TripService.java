@@ -5,7 +5,10 @@ import com.ridebooking.booking.dto.PageResponse;
 import com.ridebooking.booking.dto.TripResponse;
 import com.ridebooking.booking.dto.TripSearchItemResponse;
 import com.ridebooking.booking.dto.TripSearchRequest;
+import com.ridebooking.booking.dto.CompanyRatingResponse;
+import com.ridebooking.booking.entity.StopPoint;
 import com.ridebooking.booking.entity.Trip;
+import com.ridebooking.booking.enums.PointType;
 import com.ridebooking.booking.enums.SeatStatus;
 import com.ridebooking.booking.enums.TripSort;
 import com.ridebooking.booking.enums.TripStatus;
@@ -14,6 +17,7 @@ import com.ridebooking.booking.enums.BookingStatus;
 import com.ridebooking.booking.repository.BookingRepository;
 import com.ridebooking.booking.repository.BusCompanyRepository;
 import com.ridebooking.booking.repository.RouteRepository;
+import com.ridebooking.booking.repository.StopPointRepository;
 import com.ridebooking.booking.repository.TripRepository;
 import com.ridebooking.booking.repository.TripSeatRepository;
 import java.time.LocalDate;
@@ -43,13 +47,19 @@ public class TripService {
     private final TripRepository tripRepository;
     private final TripSeatRepository tripSeatRepository;
     private final BookingRepository bookingRepository;
+    private final StopPointRepository stopPointRepository;
+    private final ReviewService reviewService;
 
     public TripService(TripRepository tripRepository,
                        TripSeatRepository tripSeatRepository,
-                       BookingRepository bookingRepository) {
+                       BookingRepository bookingRepository,
+                       StopPointRepository stopPointRepository,
+                       ReviewService reviewService) {
         this.tripRepository = tripRepository;
         this.tripSeatRepository = tripSeatRepository;
         this.bookingRepository = bookingRepository;
+        this.stopPointRepository = stopPointRepository;
+        this.reviewService = reviewService;
     }
 
     /**
@@ -99,15 +109,36 @@ public class TripService {
 
         TimeWindow window = resolveTimeWindow(request);
 
+        // Chuyến đã khởi hành vẫn ACTIVE cho tới khi job hoàn tất quét tới (sau giờ
+        // đến), nhưng BookingService đã từ chối đặt vé. Không trả những chuyến đó
+        // để khách không chọn phải chuyến không đặt được. Giờ đi đúng bằng "bây giờ"
+        // cũng bị loại, khớp điều kiện departureTime > now bên đặt vé.
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime from = window.from() == null || !window.from().isAfter(now)
+                ? now.plusNanos(1)
+                : window.from();
+
+        if (request.minPrice() != null && request.maxPrice() != null
+                && request.maxPrice().compareTo(request.minPrice()) < 0) {
+            throw new IllegalArgumentException("Giá cao nhất phải lớn hơn hoặc bằng giá thấp nhất");
+        }
+
+        // companyId cũ đã gộp vào allCompanyIds(), nên truyền null ở matches() để
+        // không AND hai điều kiện nhà xe với nhau.
         Specification<Trip> spec = TripRepository.matches(
                 request.originId(),
                 request.destinationId(),
-                request.companyId(),
-                window.from(),
+                null,
+                from,
                 window.to(),
                 request.minPrice(),
                 request.maxPrice(),
-                TripStatus.ACTIVE);
+                TripStatus.ACTIVE)
+                .and(TripRepository.matchesExtra(
+                        request.allCompanyIds(),
+                        request.busTypes(),
+                        nonBlank(request.pickupPoints()),
+                        nonBlank(request.dropoffPoints())));
 
         TripSort sort = request.sortOrDefault();
         Pageable pageable = PageRequest.of(safePage, safeSize,
@@ -115,7 +146,7 @@ public class TripService {
                         sort.attribute()));
 
         Page<Trip> result = tripRepository.findAll(spec, pageable);
-        return PageResponse.from(result, withSeatCounts(result.getContent()));
+        return PageResponse.from(result, withExtras(result.getContent(), withSeatCounts(result.getContent())));
     }
 
     /** Chi tiết chuyến cho Trang Thông tin chi tiết. */
@@ -123,6 +154,56 @@ public class TripService {
         Trip trip = requireById(id);
         Map<Integer, Integer> totals = countTotalsFor(List.of(id));
         return TripResponse.from(trip, totals.get(id));
+    }
+
+    /** Một chuyến dưới dạng một dòng kết quả tìm kiếm: số ghế, điểm nhà xe, điểm đón/trả. */
+    public TripSearchItemResponse getItemById(Integer id) {
+        List<Trip> trips = List.of(requireById(id));
+        return withExtras(trips, withSeatCounts(trips)).getFirst();
+    }
+
+    /**
+     * Gắn điểm nhà xe và điểm đón đầu / điểm trả cuối cho cả trang: hai câu truy
+     * vấn, không phụ thuộc số dòng.
+     */
+    private List<TripSearchItemResponse> withExtras(List<Trip> trips, List<TripSearchItemResponse> items) {
+        if (trips.isEmpty()) {
+            return items;
+        }
+        Map<Integer, CompanyRatingResponse> ratings = reviewService.ratingsOf(
+                trips.stream().map(t -> t.getCompany().getId()).distinct().toList());
+
+        Map<Integer, String> firstPickup = new HashMap<>();
+        Map<Integer, String> lastDropoff = new HashMap<>();
+        // Đã sắp theo stopOrder tăng dần: putIfAbsent giữ điểm đón đầu, put ghi đè tới điểm trả cuối.
+        for (StopPoint stop : stopPointRepository.findByTripIds(trips.stream().map(Trip::getId).toList())) {
+            Integer tripId = stop.getTrip().getId();
+            if (stop.getPointType() == PointType.PICKUP) {
+                firstPickup.putIfAbsent(tripId, stop.getName());
+            } else {
+                lastDropoff.put(tripId, stop.getName());
+            }
+        }
+
+        List<TripSearchItemResponse> result = new ArrayList<>(items.size());
+        for (TripSearchItemResponse item : items) {
+            Integer tripId = item.trip().id();
+            result.add(item.withExtras(ratings.get(item.trip().companyId()),
+                    firstPickup.get(tripId), lastDropoff.get(tripId)));
+        }
+        return result;
+    }
+
+    /** Bỏ phần tử trống, để pickupPoints= rỗng trên URL không lọc mất mọi chuyến. */
+    private static List<String> nonBlank(List<String> values) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(v -> v != null && !v.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
     }
 
     /**

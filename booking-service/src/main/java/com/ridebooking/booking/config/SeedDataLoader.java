@@ -8,14 +8,9 @@ import com.ridebooking.booking.entity.CompanyPolicy;
 import com.ridebooking.booking.entity.Location;
 import com.ridebooking.booking.entity.Promotion;
 import com.ridebooking.booking.entity.Route;
-import com.ridebooking.booking.entity.StopPoint;
-import com.ridebooking.booking.entity.Trip;
-import com.ridebooking.booking.entity.TripSeat;
 import com.ridebooking.booking.enums.BusType;
 import com.ridebooking.booking.enums.DiscountType;
-import com.ridebooking.booking.enums.PointType;
 import com.ridebooking.booking.enums.PolicyType;
-import com.ridebooking.booking.enums.TripStatus;
 import com.ridebooking.booking.repository.AmenityRepository;
 import com.ridebooking.booking.repository.BusCompanyRepository;
 import com.ridebooking.booking.repository.CancellationRuleRepository;
@@ -24,15 +19,11 @@ import com.ridebooking.booking.repository.CompanyPolicyRepository;
 import com.ridebooking.booking.repository.LocationRepository;
 import com.ridebooking.booking.repository.PromotionRepository;
 import com.ridebooking.booking.repository.RouteRepository;
-import com.ridebooking.booking.repository.StopPointRepository;
-import com.ridebooking.booking.repository.TripRepository;
-import com.ridebooking.booking.repository.TripSeatRepository;
 import com.ridebooking.booking.service.LocationService;
 import com.ridebooking.booking.service.SeatGenerator;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,54 +53,40 @@ import org.springframework.transaction.annotation.Transactional;
  * mà không nhân bản phần đã có.
  */
 @Component
+@Order(1)
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
 public class SeedDataLoader implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SeedDataLoader.class);
 
-    /** Ngày đầu tiên có chuyến. Hôm nay không nạp: dữ liệu mẫu còn dùng được ngày mai. */
-    private static final int FIRST_DAY_OFFSET = 1;
-
-    /** Số ngày có chuyến. 5 ngày đủ cho cả tuần làm việc của đồ án. */
-    private static final int TRIP_DAYS = 5;
-
     private final LocationRepository locationRepository;
     private final BusCompanyRepository busCompanyRepository;
     private final RouteRepository routeRepository;
-    private final TripRepository tripRepository;
-    private final TripSeatRepository tripSeatRepository;
-    private final StopPointRepository stopPointRepository;
-    private final SeatGenerator seatGenerator;
     private final AmenityRepository amenityRepository;
     private final CompanyImageRepository companyImageRepository;
     private final CompanyPolicyRepository companyPolicyRepository;
     private final CancellationRuleRepository cancellationRuleRepository;
     private final PromotionRepository promotionRepository;
+    private final SeedTripGenerator seedTripGenerator;
 
     public SeedDataLoader(LocationRepository locationRepository,
                           BusCompanyRepository busCompanyRepository,
                           RouteRepository routeRepository,
-                          TripRepository tripRepository,
-                          TripSeatRepository tripSeatRepository,
-                          StopPointRepository stopPointRepository,
-                          SeatGenerator seatGenerator,
                           AmenityRepository amenityRepository,
                           CompanyImageRepository companyImageRepository,
                           CompanyPolicyRepository companyPolicyRepository,
                           CancellationRuleRepository cancellationRuleRepository,
-                          PromotionRepository promotionRepository) {
+                          PromotionRepository promotionRepository,
+                          SeedTripGenerator seedTripGenerator) {
         this.locationRepository = locationRepository;
         this.busCompanyRepository = busCompanyRepository;
         this.routeRepository = routeRepository;
-        this.tripRepository = tripRepository;
-        this.tripSeatRepository = tripSeatRepository;
-        this.stopPointRepository = stopPointRepository;
-        this.seatGenerator = seatGenerator;
         this.amenityRepository = amenityRepository;
         this.companyImageRepository = companyImageRepository;
         this.companyPolicyRepository = companyPolicyRepository;
         this.cancellationRuleRepository = cancellationRuleRepository;
         this.promotionRepository = promotionRepository;
+        this.seedTripGenerator = seedTripGenerator;
     }
 
     @Override
@@ -131,23 +109,10 @@ public class SeedDataLoader implements ApplicationRunner {
         List<BusCompany> companies = seedCompanies();
         List<Route> routes = seedRoutes(locations);
 
-        int tripCount = 0;
-        int seatCount = 0;
-        for (Route route : routes) {
-            for (LocalDate day = LocalDate.now().plusDays(FIRST_DAY_OFFSET);
-                    day.isBefore(LocalDate.now().plusDays(FIRST_DAY_OFFSET + TRIP_DAYS));
-                    day = day.plusDays(1)) {
-                for (int slot = 0; slot < 3; slot++) {
-                    Trip trip = seedTrip(route, companies.get((tripCount) % companies.size()),
-                            day, slot, tripCount);
-                    seatCount += tripSeatRepository.saveAll(seatGenerator.generate(trip)).size();
-                    seedStopPoints(trip, route);
-                    tripCount++;
-                }
-            }
-        }
+        SeedTripGenerator.TopUpResult trips = seedTripGenerator.topUp(
+                routes, companies, LocalDate.now().plusDays(1), seedTripGenerator.tripDays());
         log.info("Xong seed: {} chuyến, {} ghế, {} tuyến, {} địa điểm, {} nhà xe",
-                tripCount, seatCount, routes.size(), locations.size(), companies.size());
+                trips.trips(), trips.seats(), routes.size(), locations.size(), companies.size());
     }
 
     /** Ảnh, tiện ích, chính sách và mốc hoàn tiền; bỏ qua nhóm nào đã có dữ liệu. */
@@ -346,52 +311,5 @@ public class SeedDataLoader implements ApplicationRunner {
             routes.add(routeRepository.save(route));
         }
         return routes;
-    }
-
-    /** Ba khung giờ mỗi ngày, xen kẳ loại xe và nhà xe để dữ liệu mẫu có đủ nét. */
-    private Trip seedTrip(Route route, BusCompany company, LocalDate day, int slot, int index) {
-        BusType busType = switch (index % 3) {
-            case 0 -> BusType.LIMOUSINE_29;
-            case 1 -> BusType.SLEEPER_45;
-            default -> BusType.CABIN_DOUBLE_22;
-        };
-        LocalTime departure = LocalTime.of(6 + slot * 5, 0);
-        int duration = route.getDurationMinutes();
-
-        Trip trip = new Trip();
-        trip.setRoute(route);
-        trip.setCompany(company);
-        trip.setBusType(busType);
-        trip.setDepartureTime(LocalDateTime.of(day, departure));
-        trip.setArrivalTime(trip.getDepartureTime().plusMinutes(duration));
-        // Giá cơ bản suy từ quãng đường: 12.000đ/km, làm tròn nghìn.
-        BigDecimal price = route.getDistanceKm()
-                .multiply(new BigDecimal("12000"))
-                .setScale(0, java.math.RoundingMode.HALF_UP);
-        trip.setBasePrice(busType == BusType.LIMOUSINE_29 ? price.multiply(new BigDecimal("1.6")) : price);
-        trip.setStatus(TripStatus.ACTIVE);
-        // Cần id trước khi sinh ghế.
-        return tripRepository.saveAndFlush(trip);
-    }
-
-    /** Hai điểm: đón ở bên đi, trả ở bên đến. */
-    private void seedStopPoints(Trip trip, Route route) {
-        StopPoint pickup = new StopPoint();
-        pickup.setTrip(trip);
-        pickup.setName("Bến xe " + route.getOrigin().getName());
-        pickup.setAddress("Bến xe trung tâm " + route.getOrigin().getName());
-        pickup.setPointType(PointType.PICKUP);
-        pickup.setStopOrder(1);
-        pickup.setEstimatedTime(trip.getDepartureTime().minusMinutes(10));
-
-        StopPoint dropoff = new StopPoint();
-        dropoff.setTrip(trip);
-        dropoff.setName("Bến xe " + route.getDestination().getName());
-        dropoff.setAddress("Bến xe trung tâm " + route.getDestination().getName());
-        dropoff.setPointType(PointType.DROPOFF);
-        dropoff.setStopOrder(1);
-        dropoff.setEstimatedTime(trip.getArrivalTime());
-
-        stopPointRepository.saveAll(List.of(pickup, dropoff));
     }
 }

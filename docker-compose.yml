@@ -268,6 +268,9 @@ services:
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       SEED_ENABLED: ${SEED_ENABLED:-false}
+      SEED_TRIP_DAYS: ${SEED_TRIP_DAYS:-5}
+      # Bù chuyến mẫu hằng ngày. Chỉ dev/staging; production để false.
+      SEED_TRIP_TOPUP: ${SEED_TRIP_TOPUP:-false}
       # Hiển thị tên/email người đặt vé (booking_db không join được auth_db).
       USER_SERVICE_URL: http://user-service:8082
       # Thời gian giữ ghế, dùng cho cả đồng hồ đếm ngược 10 phút ở Trang Chọn

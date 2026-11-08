@@ -43,12 +43,15 @@ public class BusCompanyContentService {
     private final CompanyPolicyRepository policyRepository;
     private final CancellationRuleRepository ruleRepository;
     private final AmenityRepository amenityRepository;
+    private final ReviewService reviewService;
 
     public BusCompanyContentService(BusCompanyRepository busCompanyRepository,
                                     CompanyImageRepository imageRepository,
                                     CompanyPolicyRepository policyRepository,
                                     CancellationRuleRepository ruleRepository,
-                                    AmenityRepository amenityRepository) {
+                                    AmenityRepository amenityRepository,
+                                    ReviewService reviewService) {
+        this.reviewService = reviewService;
         this.busCompanyRepository = busCompanyRepository;
         this.imageRepository = imageRepository;
         this.policyRepository = policyRepository;
@@ -59,6 +62,7 @@ public class BusCompanyContentService {
     public BusCompanyProfileResponse getProfile(Integer companyId) {
         BusCompany company = requireCompany(companyId);
         return BusCompanyProfileResponse.of(company,
+                reviewService.ratingsOf(List.of(companyId)).get(companyId),
                 imageRepository.findByCompanyIdOrderBySortOrderAscIdAsc(companyId).stream()
                         .map(CompanyImageResponse::from).toList(),
                 company.getAmenities().stream()

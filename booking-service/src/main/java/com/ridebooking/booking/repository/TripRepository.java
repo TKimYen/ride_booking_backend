@@ -1,7 +1,11 @@
 package com.ridebooking.booking.repository;
 
+import com.ridebooking.booking.entity.StopPoint;
 import com.ridebooking.booking.entity.Trip;
+import com.ridebooking.booking.enums.BusType;
+import com.ridebooking.booking.enums.PointType;
 import com.ridebooking.booking.enums.TripStatus;
+import jakarta.persistence.criteria.Subquery;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import java.math.BigDecimal;
@@ -34,6 +38,10 @@ public interface TripRepository extends JpaRepository<Trip, Integer>, JpaSpecifi
     @Override
     @EntityGraph(attributePaths = {"route", "route.origin", "route.destination", "company"})
     Page<Trip> findAll(Specification<Trip> spec, Pageable pageable);
+
+    /** Tuyến đã có chuyến (mọi trạng thái) khởi hành trong khoảng này chưa. Dùng cho bước bù chuyến mẫu. */
+    boolean existsByRouteIdAndDepartureTimeBetween(Integer routeId, java.time.LocalDateTime from,
+                                                   java.time.LocalDateTime to);
 
     /**
      * Đọc trạng thái mới nhất từ DB, không qua cache của phiên làm việc. Luồng giữ
@@ -128,6 +136,44 @@ public interface TripRepository extends JpaRepository<Trip, Integer>, JpaSpecifi
                 predicates.add(builder.lessThanOrEqualTo(root.get("basePrice"), maxPrice));
             }
 
+            return builder.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+    }
+
+    /**
+     * Bộ lọc mở rộng [4.4] của Trang Danh sách kết quả, ghép thêm vào {@link #matches}.
+     *
+     * <p>Danh sách rỗng hoặc null thì bỏ qua điều kiện đó. Điểm đón/trả so theo
+     * TÊN chứ không theo id: điểm dừng gắn với từng chuyến, nên "Bến xe Mỹ Đình"
+     * của hai chuyến là hai dòng khác id. Dùng {@code EXISTS} chứ không JOIN để một
+     * chuyến có nhiều điểm khớp không bị lặp trong trang kết quả.
+     */
+    static Specification<Trip> matchesExtra(Collection<Integer> companyIds,
+                                           Collection<BusType> busTypes,
+                                           Collection<String> pickupNames,
+                                           Collection<String> dropoffNames) {
+        return (root, query, builder) -> {
+            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+            if (companyIds != null && !companyIds.isEmpty()) {
+                predicates.add(root.get("company").get("id").in(companyIds));
+            }
+            if (busTypes != null && !busTypes.isEmpty()) {
+                predicates.add(root.get("busType").in(busTypes));
+            }
+            for (var filter : List.of(
+                    java.util.Map.entry(PointType.PICKUP, pickupNames == null ? List.<String>of() : pickupNames),
+                    java.util.Map.entry(PointType.DROPOFF, dropoffNames == null ? List.<String>of() : dropoffNames))) {
+                if (filter.getValue().isEmpty()) {
+                    continue;
+                }
+                Subquery<Integer> stop = query.subquery(Integer.class);
+                var sp = stop.from(StopPoint.class);
+                stop.select(sp.get("id")).where(
+                        builder.equal(sp.get("trip"), root),
+                        builder.equal(sp.get("pointType"), filter.getKey()),
+                        sp.get("name").in(filter.getValue()));
+                predicates.add(builder.exists(stop));
+            }
             return builder.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
     }

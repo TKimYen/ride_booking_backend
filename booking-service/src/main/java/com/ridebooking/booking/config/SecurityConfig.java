@@ -92,6 +92,10 @@ public class SecurityConfig {
                         // Gateway cố ý KHÔNG route /api/internal/** nên không lộ ra ngoài.
                         .requestMatchers("/api/internal/**").permitAll()
 
+                        // "Đánh giá của tôi" nằm dưới /api/reviews/** nhưng cần JWT; khai
+                        // TRƯỚC rule GET public, vì rule nào khớp trước thì thắng.
+                        .requestMatchers(HttpMethod.GET, "/api/reviews/me").authenticated()
+
                         // Chỉ GET. POST/PUT/PATCH/DELETE rơi xuống rule
                         // hasRole("ADMIN") ở dưới.
                         .requestMatchers(HttpMethod.GET, PUBLIC_CATALOG_PATHS.toArray(String[]::new)).permitAll()

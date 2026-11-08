@@ -66,6 +66,9 @@ class TripBookingFlowTest {
     private BusCompany company;
     private Route route;
 
+    /** Tìm kiếm chỉ trả chuyến chưa khởi hành, nên test tìm kiếm phải dùng ngày trong tương lai. */
+    private static final LocalDateTime FUTURE = java.time.LocalDate.now().plusDays(30).atTime(6, 0);
+
     @BeforeEach
     void setUp() {
         tripSeatRepository.deleteAll();
@@ -95,8 +98,8 @@ class TripBookingFlowTest {
     @Test
     @DisplayName("Tìm theo tuyến chỉ trả về chuyến đúng tuyến")
     void searchFiltersByRoute() {
-        createTrip(LocalDateTime.of(2026, 10, 5, 6, 0), BusType.LIMOUSINE_29);
-        createTrip(LocalDateTime.of(2026, 10, 6, 6, 0), BusType.SLEEPER_45);
+        createTrip(FUTURE.withHour(6), BusType.LIMOUSINE_29);
+        createTrip(FUTURE.plusDays(1).withHour(6), BusType.SLEEPER_45);
 
         Route otherRoute = new Route();
         otherRoute.setName("Hà Nội - Hải Phòng");
@@ -106,7 +109,7 @@ class TripBookingFlowTest {
         otherRoute.setDistanceKm(new BigDecimal("120"));
         otherRoute.setDurationMinutes(150);
         otherRoute = routeRepository.save(otherRoute);
-        createTrip(otherRoute, LocalDateTime.of(2026, 10, 5, 7, 0), BusType.SLEEPER_45);
+        createTrip(otherRoute, FUTURE.withHour(7), BusType.SLEEPER_45);
 
         PageResponse<TripSearchItemResponse> result =
                 tripService.search(new TripSearchRequest(haNoi.getId(), saPa.getId(), null, null,
@@ -120,7 +123,7 @@ class TripBookingFlowTest {
     @Test
     @DisplayName("Số ghế trống khớp với dữ liệu ghế, và không phải tổng số ghế")
     void searchReportsAvailableSeats() {
-        Trip trip = createTrip(LocalDateTime.of(2026, 10, 5, 6, 0), BusType.LIMOUSINE_29);
+        Trip trip = createTrip(FUTURE.withHour(6), BusType.LIMOUSINE_29);
         List<TripSeat> seats = tripSeatRepository.findByTripIdOrderByFloorAscSeatNameAsc(trip.getId());
         seats.get(0).setStatus(SeatStatus.BOOKED);
         seats.get(1).setStatus(SeatStatus.HOLDING);
@@ -140,7 +143,7 @@ class TripBookingFlowTest {
     @Test
     @DisplayName("Chuyến đã huỷ không xuất hiện khi tìm chuyến đang bán")
     void searchHidesCancelledTrips() {
-        Trip cancelled = createTrip(LocalDateTime.of(2026, 10, 5, 6, 0), BusType.LIMOUSINE_29);
+        Trip cancelled = createTrip(FUTURE.withHour(6), BusType.LIMOUSINE_29);
         cancelled.setStatus(TripStatus.CANCELLED);
         tripRepository.save(cancelled);
 
@@ -154,26 +157,31 @@ class TripBookingFlowTest {
     @Test
     @DisplayName("Lọc theo giờ: earliestDeparture không có travelDate thì áp dụng cho hôm nay")
     void timeWindowWithoutDateAppliesToToday() {
-        createTrip(LocalDateTime.now().withHour(14).withMinute(0).withSecond(0).withNano(0),
-                BusType.LIMOUSINE_29);
-        createTrip(LocalDateTime.now().withHour(4).withMinute(0).withSecond(0).withNano(0),
-                BusType.SLEEPER_45);
+        // Giờ tính từ lúc chạy test: chuyến cố định (vd. 14:00) sẽ "đã khởi hành"
+        // nếu chạy test buổi tối, và tìm kiếm không trả chuyến đã khởi hành.
+        LocalDateTime now = LocalDateTime.now().withSecond(0).withNano(0);
+        LocalDateTime later = now.plusMinutes(30);
+        org.junit.jupiter.api.Assumptions.assumeTrue(later.toLocalDate().equals(now.toLocalDate()),
+                "Bỏ qua trong 30 phút cuối ngày vì cả hai chuyến phải cùng là hôm nay");
+
+        createTrip(later, BusType.LIMOUSINE_29);
+        createTrip(now.plusMinutes(10), BusType.SLEEPER_45);
 
         PageResponse<TripSearchItemResponse> result = tripService.search(
                 new TripSearchRequest(null, null, null, null,
-                        LocalTime.of(12, 0), null, null, null, null), 0, 10);
+                        now.plusMinutes(20).toLocalTime(), null, null, null, null), 0, 10);
 
         assertThat(result.content()).isNotEmpty().allSatisfy(item ->
-                assertThat(item.trip().departureTime().toLocalTime()).isEqualTo(LocalTime.of(14, 0)));
+                assertThat(item.trip().departureTime()).isEqualTo(later));
     }
 
     @Test
     @DisplayName("Sắp xếp giá tăng dần thì chuyến rẻ nhất lên đầu")
     void sortByPriceAscending() {
-        Trip expensive = createTrip(LocalDateTime.of(2026, 10, 5, 6, 0), BusType.LIMOUSINE_29);
+        Trip expensive = createTrip(FUTURE.withHour(6), BusType.LIMOUSINE_29);
         expensive.setBasePrice(new BigDecimal("900000"));
         tripRepository.save(expensive);
-        Trip cheap = createTrip(LocalDateTime.of(2026, 10, 5, 7, 0), BusType.SLEEPER_45);
+        Trip cheap = createTrip(FUTURE.withHour(7), BusType.SLEEPER_45);
         cheap.setBasePrice(new BigDecimal("300000"));
         tripRepository.save(cheap);
 

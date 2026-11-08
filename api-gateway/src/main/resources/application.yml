@@ -43,6 +43,14 @@ spring:
           # Không cần ^ và $: SCG dùng Matcher.matches() nên regex phải khớp trọn
           # chuỗi. Bỏ $ còn giúp tránh lỗi Docker Compose tự escape $ thành $$.
           trusted-proxies: '${GATEWAY_TRUSTED_PROXIES:(192\.168\.65\.1|172\.28\.0\.1|127\.0\.0\.1)}'
+          # ---- CORS trùng header ----
+          # Gateway (CorsConfig) và từng service phía sau (SecurityConfig) đều thêm
+          # Access-Control-Allow-Origin. Không gộp lại thì trình duyệt nhận
+          # "http://localhost:5173, http://localhost:5173" và chặn MỌI request từ
+          # frontend. RETAIN_UNIQUE giữ mỗi giá trị một lần, nên vẫn giữ được
+          # Expose-Headers (Retry-After) mà chỉ service phía sau gửi.
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Access-Control-Expose-Headers, RETAIN_UNIQUE
           # ---- Định tuyến ----
           # Spring Cloud Gateway 5.x dùng namespace "gateway.server.webflux"
           discovery:
@@ -107,7 +115,7 @@ spring:
             - id: booking-service
               uri: ${BOOKING_SERVICE_URI:http://localhost:8083}
               predicates:
-                - Path=/api/trips/**,/api/bookings/**,/api/seats/**,/api/locations/**,/api/routes/**,/api/bus-companies/**,/api/stop-points/**,/api/reviews/**,/api/promotions/**,/api/admin/trips/**,/api/admin/routes/**,/api/admin/bus-companies/**,/api/admin/locations/**,/api/admin/bookings/**,/api/admin/promotions/**,/api/admin/amenities/**
+                - Path=/api/trips/**,/api/bookings/**,/api/seats/**,/api/locations/**,/api/routes/**,/api/bus-companies/**,/api/stop-points/**,/api/reviews/**,/api/promotions/**,/api/admin/trips/**,/api/admin/routes/**,/api/admin/bus-companies/**,/api/admin/locations/**,/api/admin/bookings/**,/api/admin/promotions/**,/api/admin/amenities/**,/api/admin/reviews/**
             # ---- Payment service (Stripe Checkout + webhook) ----
             # checkout-session cần JWT; webhook Stripe gọi trực tiếp vào service,
             # xác thực bằng chữ ký Stripe-Signature (không qua JWT).

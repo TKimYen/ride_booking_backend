@@ -1,15 +1,21 @@
 package com.ridebooking.booking.service;
 
+import com.ridebooking.booking.dto.StopPointOptionsResponse;
 import com.ridebooking.booking.dto.StopPointRequest;
 import com.ridebooking.booking.dto.StopPointResponse;
 import com.ridebooking.booking.entity.StopPoint;
 import com.ridebooking.booking.entity.Trip;
 import com.ridebooking.booking.enums.PointType;
+import com.ridebooking.booking.enums.TripStatus;
 import com.ridebooking.booking.exception.ConflictException;
 import com.ridebooking.booking.exception.ResourceNotFoundException;
 import com.ridebooking.booking.repository.StopPointRepository;
 import com.ridebooking.booking.repository.TripRepository;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.TreeSet;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -37,6 +43,25 @@ public class StopPointService {
     public StopPointService(StopPointRepository stopPointRepository, TripRepository tripRepository) {
         this.stopPointRepository = stopPointRepository;
         this.tripRepository = tripRepository;
+    }
+
+    /**
+     * Tên điểm đón / trả của các chuyến đang bán — để Trang Danh sách kết quả dựng
+     * checkbox lọc. Có {@code travelDate} thì trong ngày đó, không có thì mọi chuyến
+     * chưa khởi hành.
+     */
+    @Transactional(readOnly = true)
+    public StopPointOptionsResponse options(Integer originId, Integer destinationId, LocalDate travelDate) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime from = travelDate == null ? now : travelDate.atStartOfDay();
+        LocalDateTime to = travelDate == null ? LocalDateTime.of(9999, 12, 31, 0, 0) : travelDate.atTime(LocalTime.MAX);
+        TreeSet<String> pickups = new TreeSet<>();
+        TreeSet<String> dropoffs = new TreeSet<>();
+        for (Object[] row : stopPointRepository.findDistinctNames(TripStatus.ACTIVE, from, to,
+                originId == null ? 0 : originId, destinationId == null ? 0 : destinationId)) {
+            (row[0] == PointType.PICKUP ? pickups : dropoffs).add((String) row[1]);
+        }
+        return new StopPointOptionsResponse(List.copyOf(pickups), List.copyOf(dropoffs));
     }
 
     @Transactional(readOnly = true)

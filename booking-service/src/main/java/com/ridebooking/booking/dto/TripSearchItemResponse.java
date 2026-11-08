@@ -19,9 +19,29 @@ public record TripSearchItemResponse(
         Integer availableSeats,
 
         @Schema(description = "Số ghế đã có người giữ hoặc đã bán", example = "17")
-        Integer unavailableSeats) {
+        Integer unavailableSeats,
+
+        @Schema(description = "Điểm trung bình của nhà xe; null khi chưa có đánh giá", example = "4.6")
+        java.math.BigDecimal rating,
+
+        @Schema(description = "Số lượt đánh giá của nhà xe", example = "37")
+        Long ratingCount,
+
+        @Schema(description = "Tên điểm đón đầu tiên", example = "Bến xe Mỹ Đình")
+        String pickupPreview,
+
+        @Schema(description = "Tên điểm trả cuối cùng", example = "Bến xe Sa Pa")
+        String dropoffPreview) {
 
     public static TripSearchItemResponse of(TripResponse trip, Integer available, Integer unavailable) {
-        return new TripSearchItemResponse(trip, available, unavailable);
+        return new TripSearchItemResponse(trip, available, unavailable, null, null, null, null);
+    }
+
+    /** Bản sao có thêm điểm nhà xe và điểm đón/trả đầu-cuối. */
+    public TripSearchItemResponse withExtras(CompanyRatingResponse companyRating,
+                                             String pickup, String dropoff) {
+        CompanyRatingResponse r = companyRating == null ? CompanyRatingResponse.NONE : companyRating;
+        return new TripSearchItemResponse(trip, availableSeats, unavailableSeats,
+                r.averageRating(), r.totalReviews(), pickup, dropoff);
     }
 }
