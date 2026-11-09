@@ -5,6 +5,10 @@ spring:
     gateway:
       server:
         webflux:
+          # Các service phía sau cũng có thể thêm CORS header. Giữ lại một
+          # giá trị ở gateway để trình duyệt không từ chối header bị lặp.
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin RETAIN_FIRST
           # ---- X-Forwarded-For ----
           # Bắt buộc: không có phần này thì gateway KHÔNG gửi X-Forwarded-For, và mọi
           # request đi qua gateway đều bị auth-service ghi nhận cùng một IP. Khi đó
