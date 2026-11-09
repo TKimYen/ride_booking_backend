@@ -35,6 +35,7 @@ jacoco.exec
 jacoco.xml
 # Docker
 .env
+.env.prod.example
 
 # Ghi chú ghi nháp chứa bí mật (nội dung tài liệu chính thức như API.md, README.md
 # thì VẪN được commit — dòng '*.md' đã bị gỡ vì nó nuốt luôn tài liệu dự án).

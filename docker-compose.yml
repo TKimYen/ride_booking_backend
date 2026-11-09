@@ -16,7 +16,7 @@ name: ride-booking
 x-common-env: &common-env
   EUREKA_URL: http://discovery-server:8761/eureka
   # Cả hai service phải dùng cùng secret để user-service đọc được token của auth-service
-  JWT_SECRET: ${JWT_SECRET:-ride-booking-microservices-dev-secret-key-change-me-0123456789}
+  JWT_SECRET: qDsCu1Jk4bPs+gdAbr5aGYSEndH51z0HaIUdFrF+/SRRtBPt/xk8GUX9wYhYVKyi
   # Khoá gọi API nội bộ giữa các service
   INTERNAL_API_KEY: ${INTERNAL_API_KEY:-ride-booking-internal-dev-key}
   # Danh sách origin được phép gọi API (phân cách bằng dấu phẩy, không dùng *)
