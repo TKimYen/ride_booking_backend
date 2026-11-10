@@ -892,7 +892,9 @@ còn vé đã bán cũng trả `409`.
 | `POST /api/bookings/{id}/cancel` | JWT hoặc `X-Guest-Token` | Huỷ đơn chưa thanh toán: trả ghế, đơn → `CANCELLED` |
 | `POST /api/bookings/lookup` | Công khai | Tra cứu vé `{bookingCode, phone}`; đơn khách vãng lai trả kèm `guestToken` **mới** |
 | `POST /api/bookings/claim` | JWT | Gắn vé đặt lúc chưa đăng nhập vào tài khoản `{bookingCode, phone}` |
-| `GET /api/admin/bookings` | ADMIN | Danh sách đơn/hành khách theo `tripId`, `status` |
+| `GET /api/admin/bookings` | ADMIN | Danh sách đơn; lọc `tripId`, `status`, `keyword`, `from`, `to` (mục 11.8) |
+| `GET /api/admin/bookings/{id}` | ADMIN | Chi tiết một đơn bất kỳ |
+| `POST /api/admin/bookings/{id}/cancel` | ADMIN | Huỷ đơn, bắt buộc `{reason}` (mục 11.8) |
 
 `POST /api/bookings` body (`HoldSeatsRequest`): `tripId`, `seatIds` (1..10 id ghế),
 `pickupPointId?`, `dropoffPointId?`, `contactName`, `contactPhone`, `contactEmail`.
@@ -947,9 +949,42 @@ Trong môi trường Docker, xem email tại http://localhost:8025. Link mở
 
 ### 11.8. Admin — Quản lý Đơn hàng
 
-`GET /api/admin/bookings?tripId=&status=&page=&size=` trả danh sách đơn (và hành
-khách) toàn hệ thống hoặc theo một chuyến, mới nhất trước. Cùng dạng
+`GET /api/admin/bookings?tripId=&status=&keyword=&from=&to=&page=&size=` trả danh sách
+đơn (và hành khách) toàn hệ thống hoặc theo một chuyến, mới nhất trước. Cùng dạng
 `BookingResponse`, ghế và giao dịch được nạp theo lô (2 truy vấn) nên không N+1.
+
+- `keyword`: khớp một phần mã vé, tên, SĐT hoặc email liên hệ, không phân biệt hoa thường.
+  Ký tự `%`/`_` được escape, không khớp mọi dòng.
+- `from`/`to` (`yyyy-MM-dd`): ngày **tạo đơn**, tính trọn ngày ở cả hai đầu. `from` > `to` → 400.
+
+`POST /api/admin/bookings/{id}/cancel` body `{"reason": "..."}` (bắt buộc, tối đa 255 ký tự;
+thiếu/trống → 400). Trả `{booking, refund}`:
+
+- Huỷ được đơn `PENDING` còn hạn hoặc `PAID` của chuyến **chưa khởi hành**; ghế được trả về
+  `AVAILABLE`, lý do lưu vào `cancelReason`.
+- Đơn `COMPLETED`/`EXPIRED` hoặc chuyến đã chạy → 409. Đơn không tồn tại → 404.
+- Gọi lại trên đơn đã huỷ không lỗi và không ghi đè lý do cũ.
+- Đơn đã thu tiền thì `refund` có số tiền, cổng và mã giao dịch. **Chưa tự hoàn tiền** —
+  hàng đợi hoàn tiền làm ở tuần 3.
+
+`BookingResponse` có thêm `cancelledAt` và `cancelReason`.
+
+### 11.8b. Admin — Thống kê Dashboard (`role=ADMIN`)
+
+Mọi API nhận `from`/`to` (`yyyy-MM-dd`, trọn ngày cả hai đầu; bỏ trống = 30 ngày gần nhất,
+tối đa 366 ngày, sai → 400) và `companyId` tuỳ chọn để lọc theo nhà xe.
+
+| Method | Endpoint                              | Trả về |
+| ------ | ------------------------------------- | ------ |
+| GET    | `/api/admin/stats/overview`           | `revenue`, `paidBookings`, `ticketsSold`, `newBookings`, `cancelledBookings`, `upcomingTrips` |
+| GET    | `/api/admin/stats/revenue`            | Mỗi ngày `{date, revenue, bookings, tickets}`; ngày trống = 0 |
+| GET    | `/api/admin/stats/bookings-by-status` | Đủ 5 trạng thái `{status, count}` của đơn tạo trong kỳ |
+| GET    | `/api/admin/stats/top-routes?limit=5` | Tuyến xếp theo doanh thu `{routeId, routeName, originName, destinationName, bookings, tickets, revenue}`; `limit` 1–20 |
+
+- **Doanh thu** = tổng `totalPrice` của đơn `PAID` + `COMPLETED`, tính theo `paidAt`.
+  Đơn đã trả tiền rồi bị huỷ (huỷ chuyến/Admin huỷ) chuyển `CANCELLED` nên không còn trong doanh thu.
+- `upcomingTrips` = số chuyến `ACTIVE` chưa khởi hành tại lúc gọi (không phụ thuộc `from`/`to`).
+- Gateway: `/api/admin/stats/**` đi vào booking-service.
 
 ### 11.9. Thanh toán Stripe — payment-service (8084)
 
@@ -1017,9 +1052,8 @@ Dữ liệu mẫu: đặt `SEED_ENABLED=true`. Ảnh mẫu là ảnh giữ chỗ
 
 ### 11.12. Chưa có API (đã có schema)
 
-File này chỉ liệt kê endpoint **đã chạy được**. Các endpoint dự kiến (dashboard
-`/api/admin/stats/*`, ghi đánh giá, profile nhà xe, khuyến mãi...) chưa được
-ghi ở đây. Làm xong việc nào thì chuyển endpoint đó vào mục 11 ở trên.
+File này chỉ liệt kê endpoint **đã chạy được**. Các endpoint dự kiến (ghi đánh giá,
+khuyến mãi...) chưa được ghi ở đây. Làm xong việc nào thì chuyển endpoint đó vào mục 11 ở trên.
 
 DB đã lưu `subtotal_price`, `discount_amount`, `paid_at`, `cancelled_at` cho mỗi đơn
 nhưng `BookingResponse` chưa trả ra — thêm khi làm khuyến mãi (Việc 9).

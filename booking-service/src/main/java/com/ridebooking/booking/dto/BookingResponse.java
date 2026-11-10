@@ -37,6 +37,11 @@ public record BookingResponse(
         LocalDateTime expiresAt,
         @Schema(description = "Số giây còn lại để thanh toán; null khi đơn không ở PENDING", example = "412")
         Long holdSecondsRemaining,
+        @Schema(description = "Thời điểm huỷ; null nếu đơn chưa huỷ", example = "2026-10-02T11:00:00")
+        LocalDateTime cancelledAt,
+        @Schema(description = "Lý do huỷ do Admin nhập; null nếu khách tự huỷ hoặc chưa huỷ",
+                example = "Khách gọi tổng đài xin huỷ")
+        String cancelReason,
         List<BookingSeatResponse> seats,
         @Schema(description = "Giao dịch thành công gần nhất; null khi chưa thanh toán") PaymentResponse payment,
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -71,6 +76,8 @@ public record BookingResponse(
                 booking.getCreatedAt(),
                 booking.getExpiresAt(),
                 holdSeconds,
+                booking.getCancelledAt(),
+                booking.getCancelReason(),
                 seats.stream().map(BookingSeatResponse::from).toList(),
                 payment == null ? null : PaymentResponse.from(payment),
                 null);
@@ -81,6 +88,6 @@ public record BookingResponse(
         return new BookingResponse(id, bookingCode, userId, guest, trip, pickupPoint, dropoffPoint,
                 contactName, contactPhone, contactEmail, totalPrice, subtotalPrice, discountAmount,
                 promotionCode, status, createdAt, expiresAt,
-                holdSecondsRemaining, seats, payment, token);
+                holdSecondsRemaining, cancelledAt, cancelReason, seats, payment, token);
     }
 }

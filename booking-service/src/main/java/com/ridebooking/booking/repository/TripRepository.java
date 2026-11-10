@@ -177,4 +177,13 @@ public interface TripRepository extends JpaRepository<Trip, Integer>, JpaSpecifi
             return builder.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
     }
+
+    /** Số chuyến theo trạng thái khởi hành sau mốc này; Dashboard [3.5] đếm chuyến sắp chạy. */
+    @Query("""
+            SELECT count(t) FROM Trip t
+            WHERE t.status = :status AND t.departureTime > :after
+              AND (:companyId IS NULL OR t.company.id = :companyId)
+            """)
+    long countUpcoming(@Param("status") TripStatus status, @Param("after") LocalDateTime after,
+                       @Param("companyId") Integer companyId);
 }

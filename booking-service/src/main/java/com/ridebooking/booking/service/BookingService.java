@@ -1,5 +1,6 @@
 package com.ridebooking.booking.service;
 
+import com.ridebooking.booking.dto.AdminBookingCancellationResponse;
 import com.ridebooking.booking.dto.BookingLookupRequest;
 import com.ridebooking.booking.dto.BookingResponse;
 import com.ridebooking.booking.dto.HoldSeatsRequest;
@@ -7,6 +8,7 @@ import com.ridebooking.booking.dto.InternalBookingResponse;
 import com.ridebooking.booking.dto.InternalPaymentRequest;
 import com.ridebooking.booking.dto.PageResponse;
 import com.ridebooking.booking.dto.PaymentRequest;
+import com.ridebooking.booking.dto.TripCancellationResponse.RefundItem;
 import com.ridebooking.booking.entity.Booking;
 import com.ridebooking.booking.entity.BookingDetail;
 import com.ridebooking.booking.entity.Payment;
@@ -35,6 +37,7 @@ import com.ridebooking.booking.security.AuthenticatedUser;
 import com.ridebooking.booking.security.SecurityUtils;
 import com.ridebooking.booking.util.GuestTokens;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -521,11 +524,108 @@ public class BookingService {
     /** Trang Quản lý Đơn hàng của Admin; {@code tripId} null = mọi chuyến. */
     public PageResponse<BookingResponse> listForAdmin(Integer tripId, List<BookingStatus> statuses,
                                                       int page, int size) {
+        return searchForAdmin(tripId, statuses, null, null, null, page, size);
+    }
+
+    /** Chi tiết đơn cho Admin; quyền ADMIN đã chặn ở SecurityConfig ({@code /api/admin/**}). */
+    public BookingResponse getOneForAdmin(Integer bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn với id " + bookingId));
+        List<BookingDetail> details = bookingDetailRepository.findByBookingIdWithSeat(bookingId);
+        return BookingResponse.from(booking, details, latestSuccessfulPayment(bookingId), LocalDateTime.now());
+    }
+
+    /**
+     * Trang Quản lý Đơn hàng có bộ lọc [4.5]. {@code from}/{@code to} là ngày tạo đơn,
+     * tính trọn ngày ở cả hai đầu. Mọi tham số đều tuỳ chọn.
+     */
+    public PageResponse<BookingResponse> searchForAdmin(Integer tripId, List<BookingStatus> statuses, String keyword,
+                                                        LocalDate from, LocalDate to, int page, int size) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new BadRequestException("Ngày bắt đầu (from) phải trước hoặc bằng ngày kết thúc (to)");
+        }
         var pageable = PageRequest.of(Math.max(page, 0), clampSize(size), Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Booking> result = tripId == null
-                ? bookingRepository.findByStatusIn(normalizeStatuses(statuses), pageable)
-                : bookingRepository.findByTripIdAndStatusIn(tripId, normalizeStatuses(statuses), pageable);
+        Page<Booking> result = bookingRepository.findAll(BookingRepository.adminFilter(
+                tripId,
+                statuses,
+                keyword,
+                from == null ? null : from.atStartOfDay(),
+                to == null ? null : to.plusDays(1).atStartOfDay()), pageable);
         return toPage(result);
+    }
+
+    /**
+     * Admin huỷ một đơn [4.5], bắt buộc có lý do. Trả ghế về AVAILABLE, đơn thành
+     * CANCELLED; nếu đơn đã thu tiền thì kèm thông tin cần hoàn.
+     *
+     * <p>Giống huỷ chuyến: khoá ghế trước rồi đọc lại trạng thái đơn, để một lần
+     * thanh toán đang chạy song song hoặc đã xong trước (đơn thành PAID), hoặc đến
+     * sau (thấy ghế không còn HOLDING nên bị từ chối và tự hoàn tiền). Hệ thống CHƯA
+     * tự gọi hoàn tiền — đó là hàng đợi hoàn tiền ở tuần 3.
+     */
+    @Transactional
+    public AdminBookingCancellationResponse cancelByAdmin(Integer bookingId, String reason) {
+        String trimmed = reason == null ? "" : reason.trim();
+        if (trimmed.isEmpty()) {
+            throw new BadRequestException("Vui lòng nhập lý do huỷ đơn");
+        }
+        if (trimmed.length() > 255) {
+            throw new BadRequestException("Lý do huỷ tối đa 255 ký tự");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn với id " + bookingId));
+        List<BookingDetail> details = bookingDetailRepository.findByBookingIdWithSeat(bookingId);
+
+        if (booking.getStatus() != BookingStatus.CANCELLED) {
+            BookingStatus seen = booking.getStatus();
+            requireAdminCancellable(booking, now);
+            List<Integer> seatIds = details.stream()
+                    .map(detail -> detail.getSeat().getId())
+                    .distinct()
+                    .sorted()
+                    .toList();
+            List<TripSeat> seats = lockSeats(seatIds);
+            BookingStatus current = bookingRepository.findStatusById(bookingId).orElseThrow();
+            if (current != seen) {
+                throw new ConflictException("Trạng thái đơn vừa thay đổi, vui lòng tải lại");
+            }
+            SeatStatus held = seen == BookingStatus.PAID ? SeatStatus.BOOKED : SeatStatus.HOLDING;
+            for (TripSeat seat : seats) {
+                if (seat.getStatus() == held) {
+                    seat.setStatus(SeatStatus.AVAILABLE);
+                    seat.setHoldingUntil(null);
+                }
+            }
+            tripSeatRepository.saveAll(seats);
+            booking.setStatus(BookingStatus.CANCELLED);
+            booking.setCancelledAt(now);
+            booking.setCancelReason(trimmed);
+        }
+
+        Payment payment = latestSuccessfulPayment(bookingId);
+        RefundItem refund = payment == null ? null : new RefundItem(booking.getId(), booking.getBookingCode(),
+                booking.getContactName(), booking.getContactPhone(), booking.getContactEmail(),
+                payment.getAmount(), payment.getPaymentGateway().name(), payment.getTransactionNo());
+        return new AdminBookingCancellationResponse(BookingResponse.from(booking, details, payment, now), refund);
+    }
+
+    private void requireAdminCancellable(Booking booking, LocalDateTime now) {
+        switch (booking.getStatus()) {
+            case COMPLETED -> throw new ConflictException("Đơn đã hoàn thành (khách đã đi), không thể huỷ");
+            case EXPIRED -> throw new ConflictException("Đơn đã hết hạn, không cần huỷ");
+            case PENDING -> {
+                if (isExpired(booking, now)) {
+                    throw new ConflictException("Đơn đã hết hạn thanh toán, không cần huỷ");
+                }
+            }
+            default -> {
+                // PAID: kiểm tra giờ chạy bên dưới.
+            }
+        }
+        if (!booking.getTrip().getDepartureTime().isAfter(now)) {
+            throw new ConflictException("Chuyến đã khởi hành, không thể huỷ đơn");
+        }
     }
 
 

@@ -143,7 +143,7 @@ public class TripLifecycleService {
 
     /**
      * Đơn đã huỷ mà còn giao dịch SUCCESS, tức đã thu tiền và chưa hoàn. Khách không
-     * tự huỷ được đơn PAID nên các đơn này chỉ có thể đến từ huỷ chuyến.
+     * tự huỷ được đơn PAID nên các đơn này đến từ huỷ chuyến hoặc Admin huỷ đơn [4.5].
      */
     private List<RefundItem> refundsOf(Integer tripId) {
         Map<Integer, Booking> bookings = new LinkedHashMap<>();

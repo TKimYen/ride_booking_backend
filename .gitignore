@@ -44,3 +44,4 @@ jacoco.xml
 *ethenemail*.md
 .env.*
 !.env.example
+!.env.prod.example
