@@ -21,4 +21,4 @@ jobs:
           cache: maven
 
       - name: Run Maven Test
-        run: mvn test
+        run: mvn test -B -Dmaven.wagon.http.retryHandler.count=3
