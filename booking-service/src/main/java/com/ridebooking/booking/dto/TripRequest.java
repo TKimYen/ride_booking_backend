@@ -2,6 +2,7 @@ package com.ridebooking.booking.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -25,11 +26,12 @@ public record TripRequest(
         String busType,
 
         @NotNull(message = "Giờ khởi hành không được bỏ trống")
-        @Schema(example = "2026-10-05T06:00:00", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Future(message = "Giờ khởi hành phải sau thời điểm hiện tại")
+        @Schema(example = "2027-01-15T06:00:00", requiredMode = Schema.RequiredMode.REQUIRED)
         LocalDateTime departureTime,
 
         @NotNull(message = "Giờ đến không được bỏ trống")
-        @Schema(example = "2026-10-05T11:00:00", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(example = "2027-01-15T11:00:00", requiredMode = Schema.RequiredMode.REQUIRED)
         LocalDateTime arrivalTime,
 
         @NotNull(message = "Giá vé không được bỏ trống")

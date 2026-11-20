@@ -163,6 +163,46 @@ class PaymentServiceTest {
         verify(stripeService, never()).refund(any(), any());
     }
 
+    @Test
+    @DisplayName("Stripe báo Checkout hết hạn thì không chốt hoặc hoàn tiền")
+    void ignoresExpiredCheckoutSession() {
+        Event event = mock(Event.class);
+        when(event.getType()).thenReturn("checkout.session.expired");
+        when(stripeService.parseWebhook("payload", "sig")).thenReturn(event);
+
+        paymentService.handleWebhook("payload", "sig");
+
+        verify(bookingClient, never()).confirmPayment(any(), any());
+        verify(stripeService, never()).refund(any(), any());
+    }
+
+    @Test
+    @DisplayName("Thanh toán bất đồng bộ thành công cũng chốt đơn")
+    void settlesAsyncPaidCheckoutSession() {
+        Event event = paidEvent("pi_async_1", 500_000L);
+        when(event.getType()).thenReturn("checkout.session.async_payment_succeeded");
+        when(stripeService.parseWebhook("payload", "sig")).thenReturn(event);
+        when(bookingClient.confirmPayment(eq(10), any())).thenReturn(new ConfirmPaymentResult(10, "PAID"));
+
+        paymentService.handleWebhook("payload", "sig");
+
+        verify(bookingClient).confirmPayment(eq(10), any());
+    }
+
+    @Test
+    @DisplayName("Webhook Stripe gửi trùng chỉ chốt đơn một lần")
+    void ignoresDuplicateWebhook() {
+        Event event = paidEvent("pi_duplicate_1", 500_000L);
+        when(event.getId()).thenReturn("evt_duplicate_1");
+        when(stripeService.parseWebhook("payload", "sig")).thenReturn(event);
+        when(bookingClient.confirmPayment(eq(10), any())).thenReturn(new ConfirmPaymentResult(10, "PAID"));
+
+        paymentService.handleWebhook("payload", "sig");
+        paymentService.handleWebhook("payload", "sig");
+
+        verify(bookingClient).confirmPayment(eq(10), any());
+    }
+
     private Event paidEvent(String paymentIntentId, long amount) {
         Session session = session(paymentIntentId, amount);
         EventDataObjectDeserializer objectDeserializer = deserializer(session);

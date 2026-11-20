@@ -5,6 +5,7 @@ import com.ridebooking.auth.client.UserServiceClientProperties.CreateProfileRequ
 import com.ridebooking.auth.client.UserServiceClientProperties.ProfileView;
 import com.ridebooking.auth.config.JwtProperties;
 import com.ridebooking.auth.dto.AuthResponse;
+import com.ridebooking.auth.dto.AdminUserResponse;
 import com.ridebooking.auth.dto.ChangeEmailRequest;
 import com.ridebooking.auth.dto.ChangePasswordRequest;
 import com.ridebooking.auth.dto.ConfirmEmailChangeRequest;
@@ -13,6 +14,7 @@ import com.ridebooking.auth.dto.EmailVerifiedResponse;
 import com.ridebooking.auth.dto.ResetPasswordRequest;
 import com.ridebooking.auth.dto.LoginRequest;
 import com.ridebooking.auth.dto.RegisterRequest;
+import com.ridebooking.auth.dto.RegistrationResponse;
 import com.ridebooking.auth.dto.UserResponse;
 import com.ridebooking.auth.entity.User;
 import com.ridebooking.auth.enums.Role;
@@ -32,6 +34,9 @@ import com.ridebooking.auth.security.RefreshTokenService.RefreshResult;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -89,7 +94,7 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResponse register(RegisterRequest request, String userAgent, String ipAddress) {
+    public RegistrationResponse register(RegisterRequest request, String ipAddress) {
         String email = normalizeEmail(request.email());
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new EmailAlreadyExistsException(email);
@@ -109,7 +114,8 @@ public class AuthService {
         emailTokenService.sendVerification(saved, ipAddress);
 
         syncProfile(saved, request.fullName().trim(), request.phone(), request.dob(), request.gender());
-        return buildAuthResponse(saved, userAgent, ipAddress);
+        return new RegistrationResponse(saved.getEmail(),
+                "Tài khoản đã được tạo. Vui lòng xác minh email trước khi đăng nhập.");
     }
 
     // KHÔNG bọc @Transactional: hàm này ném BadCredentialsException / AccountLockedException
@@ -173,7 +179,13 @@ public class AuthService {
                     });
         }
 
-        return buildAuthResponse(findById(result.userId()), userAgent, ipAddress);
+        User user = findById(result.userId());
+        if (emailProperties.isRequireVerifiedForLogin() && !user.isEmailVerified()) {
+            refreshTokenService.revokeAll(user.getId());
+            throw new EmailNotVerifiedException(
+                    "Email chưa được xác minh. Vui lòng kiểm tra hộp thư để lấy mã xác minh");
+        }
+        return buildAuthResponse(user, userAgent, ipAddress);
     }
 
     @Transactional
@@ -351,15 +363,20 @@ public class AuthService {
         user.setRole(request.role() == null ? Role.USER : request.role());
 
         User saved = userRepository.save(user);
+        emailTokenService.sendVerification(saved, null);
         ProfileView profile = syncProfile(saved, request.fullName().trim(), request.phone(), null, null);
 
         return buildUserResponse(saved, profile);
     }
 
     @Transactional(readOnly = true)
-    public List<UserResponse> listUsers() {
-        return userRepository.findAll().stream()
-                .map(user -> buildUserResponse(user, null))
+    public List<AdminUserResponse> listUsers() {
+        List<User> users = userRepository.findAll();
+        List<Integer> userIds = users.stream().map(User::getId).toList();
+        Map<Integer, ProfileView> profiles = userServiceClient.fetchProfiles(userIds).stream()
+                .collect(Collectors.toMap(ProfileView::id, Function.identity(), (first, ignored) -> first));
+        return users.stream()
+                .map(user -> buildAdminUserResponse(user, profiles.get(user.getId())))
                 .toList();
     }
 
@@ -426,6 +443,22 @@ public class AuthService {
                 gender,
                 user.getRole(),
                 user.getCreatedAt() == null ? null : user.getCreatedAt().toString());
+    }
+
+    private AdminUserResponse buildAdminUserResponse(User user, ProfileView profile) {
+        UserResponse response = buildUserResponse(user, profile);
+        return new AdminUserResponse(
+                response.id(),
+                response.fullName(),
+                response.phone(),
+                response.email(),
+                response.dob(),
+                response.gender(),
+                response.role(),
+                response.createdAt(),
+                user.isEmailVerified(),
+                user.getLastLoginAt() == null ? null : user.getLastLoginAt().toString(),
+                loginAttemptService.isLocked(user.getEmail()));
     }
 
     private User findById(Integer userId) {

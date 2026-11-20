@@ -4,6 +4,10 @@ import static com.ridebooking.auth.client.UserServiceClientProperties.CreateProf
 import static com.ridebooking.auth.client.UserServiceClientProperties.ProfileView;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.restclient.RestTemplateBuilder;
@@ -71,6 +75,30 @@ public class UserServiceClient {
             log.warn("Không đọc được hồ sơ userId={} từ user-service: {}", userId, ex.getMessage());
             return null;
         }
+    }
+
+    /** Lấy một lô hồ sơ để hiển thị danh sách tài khoản trong trang Admin. */
+    public List<ProfileView> fetchProfiles(List<Integer> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return List.of();
+        }
+        List<ProfileView> profiles = new ArrayList<>();
+        for (int start = 0; start < userIds.size(); start += 200) {
+            List<Integer> batch = userIds.subList(start, Math.min(start + 200, userIds.size()));
+            try {
+                ProfileView[] response = restTemplate.exchange(
+                        "/api/internal/users/batch",
+                        HttpMethod.POST,
+                        new HttpEntity<>(Map.of("userIds", batch), internalHeaders()),
+                        ProfileView[].class).getBody();
+                if (response != null) {
+                    profiles.addAll(Arrays.asList(response));
+                }
+            } catch (Exception ex) {
+                log.warn("Không đọc được {} hồ sơ từ user-service: {}", batch.size(), ex.getMessage());
+            }
+        }
+        return profiles;
     }
 
     /**

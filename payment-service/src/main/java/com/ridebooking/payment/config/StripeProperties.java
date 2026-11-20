@@ -20,10 +20,10 @@ public class StripeProperties {
     private String webhookSecret;
 
     /** Nơi Stripe đưa khách về sau khi trả tiền thành công. */
-    private String successUrl = "http://localhost:3000/my-bookings";
+    private String successUrl = "http://localhost:5173/dat-ve/ket-qua";
 
     /** Nơi Stripe đưa khách về khi khách bỏ ngang. */
-    private String cancelUrl = "http://localhost:3000/booking/cancel";
+    private String cancelUrl = "http://localhost:5173/dat-ve/ket-qua?status=cancelled";
 
     /** Đơn vị tiền tệ gửi Stripe. VND là tiền tệ 0 chữ số thập phân. */
     private String currency = "vnd";

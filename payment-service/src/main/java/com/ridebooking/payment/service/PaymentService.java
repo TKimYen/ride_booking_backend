@@ -13,6 +13,8 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
@@ -28,6 +30,7 @@ public class PaymentService {
 
     private final BookingClient bookingClient;
     private final StripeService stripeService;
+    private final Set<String> processedEventIds = ConcurrentHashMap.newKeySet();
 
     public PaymentService(BookingClient bookingClient, StripeService stripeService) {
         this.bookingClient = bookingClient;
@@ -74,6 +77,11 @@ public class PaymentService {
     /** Xử lý webhook Stripe. Không ném lỗi nghiệp vụ ra ngoài trừ chữ ký sai. */
     public void handleWebhook(String payload, String signatureHeader) {
         Event event = stripeService.parseWebhook(payload, signatureHeader);
+        String eventId = event.getId();
+        if (eventId != null && !eventId.isBlank() && !processedEventIds.add(eventId)) {
+            log.info("Bỏ qua webhook Stripe trùng {}", eventId);
+            return;
+        }
         switch (event.getType()) {
             case "checkout.session.completed", "checkout.session.async_payment_succeeded" ->
                     onCheckoutSessionPaid(event);

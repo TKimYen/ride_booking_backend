@@ -83,6 +83,11 @@ public class LoginAttemptService {
         });
     }
 
+    @Transactional(readOnly = true)
+    public boolean isLocked(String email) {
+        return repository.existsByEmailAndLockedUntilAfter(email, LocalDateTime.now());
+    }
+
     /** Ghi nhận một lần đăng nhập sai, khoá cặp (email, ip) khi vượt ngưỡng. */
     public void registerFailure(String email, String ipAddress) {
         String ip = normalizeIp(ipAddress);

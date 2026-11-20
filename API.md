@@ -219,7 +219,7 @@ Tất cả request `/api/**` (trừ register/login) cần header:
 
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
-| POST | `/api/auth/register` | Public | Đăng ký, trả cả accessToken + refreshToken (role luôn là `USER`) |
+| POST | `/api/auth/register` | Public | Tạo tài khoản `USER`, gửi link xác minh; chưa trả token đăng nhập |
 | POST | `/api/auth/login` | Public | Đăng nhập, trả cả accessToken + refreshToken |
 | POST | `/api/auth/refresh` | Public | Đổi cặp token (dùng refreshToken, **không** cần accessToken) |
 | POST | `/api/auth/logout` | User | Đăng xuất: gửi refreshToken để huỷ đúng phiên đó |

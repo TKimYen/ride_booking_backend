@@ -73,6 +73,7 @@ class AuthServiceBruteForceTest {
     private AuthService authService;
     private PasswordEncoder passwordEncoder;
     private User user;
+    private EmailProperties emailProperties;
 
     @BeforeEach
     void setUp() {
@@ -96,7 +97,7 @@ class AuthServiceBruteForceTest {
 
         RefreshTokenService refreshTokenService =
                 new RefreshTokenService(refreshTokenRepository, jwtProperties);
-        EmailProperties emailProperties = new EmailProperties();
+        emailProperties = new EmailProperties();
         MailService mailService = new MailService(null, emailSendLogRepository, emailProperties,
                 new EmailSendLogWriter(emailSendLogRepository));
         EmailTokenService emailTokenService = new EmailTokenService(emailTokenRepository, userRepository,
@@ -353,6 +354,22 @@ class AuthServiceBruteForceTest {
         when(userRepository.findById(1)).thenReturn(Optional.of(user));
 
         assertThat(authService.refresh("token", null, null).accessToken()).isNotBlank();
+    }
+
+    @Test
+    void refresh_unverifiedEmail_isRejectedAndAllSessionsAreRevoked() {
+        user.setEmailVerified(false);
+        RefreshToken active = new RefreshToken();
+        active.setUserId(1);
+        active.setTokenHash("f".repeat(64));
+        active.setExpiresAt(LocalDateTime.now().plusDays(3));
+        when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(active));
+        when(userRepository.findById(1)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.refresh("token", null, null))
+                .isInstanceOf(com.ridebooking.auth.exception.EmailNotVerifiedException.class);
+
+        verify(refreshTokenRepository).revokeAllForUser(anyInt(), any());
     }
 
     @Test

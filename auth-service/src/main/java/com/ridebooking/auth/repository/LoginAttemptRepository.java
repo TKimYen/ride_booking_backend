@@ -15,6 +15,8 @@ public interface LoginAttemptRepository extends JpaRepository<LoginAttempt, Long
 
     Optional<LoginAttempt> findByEmailAndIpAddress(String email, String ipAddress);
 
+    boolean existsByEmailAndLockedUntilAfter(String email, LocalDateTime now);
+
     /**
      * Đọc kèm khoá ghi (SELECT ... FOR UPDATE).
      *

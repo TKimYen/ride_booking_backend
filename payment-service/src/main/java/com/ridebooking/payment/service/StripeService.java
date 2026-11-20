@@ -54,8 +54,8 @@ public class StripeService {
         try {
             SessionCreateParams params = SessionCreateParams.builder()
                     .setMode(SessionCreateParams.Mode.PAYMENT)
-                    .setSuccessUrl(properties.getSuccessUrl())
-                    .setCancelUrl(properties.getCancelUrl())
+                    .setSuccessUrl(withBookingId(properties.getSuccessUrl(), bookingId))
+                    .setCancelUrl(withBookingId(properties.getCancelUrl(), bookingId))
                     .setClientReferenceId(String.valueOf(bookingId))
                     .putMetadata("bookingId", String.valueOf(bookingId))
                     // userId null = đơn của khách vãng lai
@@ -76,6 +76,11 @@ public class StripeService {
         } catch (StripeException ex) {
             throw new PaymentGatewayException("Không tạo được phiên thanh toán Stripe: " + ex.getMessage(), ex);
         }
+    }
+
+    private String withBookingId(String url, Integer bookingId) {
+        String separator = url.contains("?") ? "&" : "?";
+        return url + separator + "bookingId=" + bookingId;
     }
 
     /** Xác thực chữ ký và dịch payload webhook thành {@link Event}. */

@@ -87,8 +87,8 @@ class SeedTripGeneratorTest {
     }
 
     @Test
-    @DisplayName("Ngày đã có chuyến (vd. admin tạo) thì bỏ qua cả ngày")
-    void skipsDaysThatAlreadyHaveTrips() {
+    @DisplayName("Ngày có chuyến ngoài khung mẫu vẫn được bù đủ khung giờ")
+    void fillsSeedSlotsWhenDayHasAnAdminTrip() {
         Trip existing = new Trip();
         existing.setRoute(route);
         existing.setCompany(companies.getFirst());
@@ -99,9 +99,10 @@ class SeedTripGeneratorTest {
         existing.setStatus(TripStatus.ACTIVE);
         tripRepository.saveAndFlush(existing);
 
-        assertThat(generator.topUp(List.of(route), companies, DAY1, 3).trips()).isEqualTo(6);
+        assertThat(generator.topUp(List.of(route), companies, DAY1, 3).trips()).isEqualTo(9);
         assertThat(tripsOfRoute().stream().filter(t -> t.getDepartureTime().toLocalDate().equals(DAY1.plusDays(1))))
-                .containsExactly(existing);
+                .hasSize(4)
+                .contains(existing);
     }
 
     @Test

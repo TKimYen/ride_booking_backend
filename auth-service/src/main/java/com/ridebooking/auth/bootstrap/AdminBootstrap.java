@@ -7,6 +7,7 @@ import com.ridebooking.auth.config.AdminBootstrapProperties;
 import com.ridebooking.auth.entity.User;
 import com.ridebooking.auth.enums.Role;
 import com.ridebooking.auth.repository.UserRepository;
+import java.time.LocalDateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -66,6 +67,7 @@ public class AdminBootstrap implements ApplicationRunner {
             user.setFullName(properties.getFullName());
             user.setPassword(passwordEncoder.encode(requirePassword()));
             user.setRole(Role.ADMIN);
+            markEmailVerified(user);
             userRepository.save(user);
             log.warn("Đã tạo tài khoản ADMIN: {}. "
                     + "ĐỔI MẬT KHẨU NGAY sau khi đăng nhập lần đầu", email);
@@ -75,6 +77,10 @@ public class AdminBootstrap implements ApplicationRunner {
         }
 
         if (user.getRole() == Role.ADMIN) {
+            if (!user.isEmailVerified()) {
+                markEmailVerified(user);
+                userRepository.save(user);
+            }
             log.info("Tài khoản admin {} đã tồn tại, không thay đổi", email);
             // Vẫn gọi: lần trước có thể user-service chưa sẵn sàng, hoặc hồ sơ
             // bị xoá, nên admin có thể đăng nhập được nhưng không hiện trong danh
@@ -85,8 +91,14 @@ public class AdminBootstrap implements ApplicationRunner {
 
         log.warn("Nâng quyền tài khoản {} lên ADMIN theo cấu hình bootstrap", email);
         user.setRole(Role.ADMIN);
+        markEmailVerified(user);
         userRepository.save(user);
         createProfile(user);
+    }
+
+    private void markEmailVerified(User user) {
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(LocalDateTime.now());
     }
 
     /**

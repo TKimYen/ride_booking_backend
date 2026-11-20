@@ -21,7 +21,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
 /**
  * Test cho 4 điểm lộ ra khi review: key JSON trùng, body không giới hạn,
@@ -222,16 +221,20 @@ class RequestHardeningTest {
 
 
     @Test
-    @DisplayName("Token trong body trả về sub là email đã chuẩn hoá")
+    @DisplayName("Token đăng nhập dùng email đã chuẩn hoá")
     void issuedTokenUsesNormalizedEmail() throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"fullName":"Norm","email":"  MiXeD@Test.COM ","password":"Huy@2002x"}"""))
                 .andExpect(status().isCreated())
-                .andReturn();
+                .andExpect(jsonPath("$.accessToken").doesNotExist());
 
-        String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        String subject = objectMapper.readTree(body).get("accessToken").asText();
+        String loginBody = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"mixed@test.com","password":"Huy@2002x"}"""))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String subject = objectMapper.readTree(loginBody).get("accessToken").asText();
         String payload = new String(Base64.getUrlDecoder().decode(subject.split("\\.")[1]), StandardCharsets.UTF_8);
 
         assertThat(payload).contains("mixed@test.com");
