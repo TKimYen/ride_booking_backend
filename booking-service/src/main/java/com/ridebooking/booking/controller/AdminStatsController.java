@@ -4,6 +4,7 @@ import com.ridebooking.booking.dto.stats.DailyRevenueResponse;
 import com.ridebooking.booking.dto.stats.StatsOverviewResponse;
 import com.ridebooking.booking.dto.stats.StatusCountResponse;
 import com.ridebooking.booking.dto.stats.TopRouteResponse;
+import com.ridebooking.booking.dto.stats.UpcomingTripResponse;
 import com.ridebooking.booking.service.StatsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -32,7 +33,7 @@ public class AdminStatsController {
     }
 
     @Operation(summary = "Tổng quan", description = "Doanh thu, số đơn/vé đã bán, đơn mới, đơn huỷ, chuyến sắp chạy.")
-    @GetMapping("/overview")
+    @GetMapping({"/overview", "/summary"})
     public StatsOverviewResponse overview(
             @Parameter(example = "2026-10-11") @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -44,7 +45,7 @@ public class AdminStatsController {
     }
 
     @Operation(summary = "Doanh thu theo ngày", description = "Đủ mọi ngày trong khoảng; ngày không có đơn = 0.")
-    @GetMapping("/revenue")
+    @GetMapping({"/revenue", "/revenue-daily"})
     public List<DailyRevenueResponse> revenue(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -72,5 +73,13 @@ public class AdminStatsController {
             @RequestParam(required = false) Integer companyId,
             @RequestParam(defaultValue = "5") int limit) {
         return statsService.topRoutes(from, to, companyId, limit);
+    }
+
+    @Operation(summary = "Chuyến sắp chạy", description = "Danh sách chuyến ACTIVE trong số giờ tới.")
+    @GetMapping("/upcoming-trips")
+    public List<UpcomingTripResponse> upcomingTrips(
+            @RequestParam(defaultValue = "24") int hours,
+            @RequestParam(required = false) Integer companyId) {
+        return statsService.upcomingTrips(hours, companyId);
     }
 }

@@ -252,6 +252,18 @@ class TripBookingFlowTest {
     }
 
     @Test
+    @DisplayName("Không tạo chuyến đã qua giờ khởi hành")
+    void departureMustBeInFuture() {
+        LocalDateTime departure = LocalDateTime.now().minusMinutes(1);
+        TripRequest request = new TripRequest(route.getId(), company.getId(), "LIMOUSINE_29",
+                departure, departure.plusHours(6), new BigDecimal("250000"), null);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> tripAdminService.create(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sau thời điểm hiện tại");
+    }
+
+    @Test
     @DisplayName("Loại xe lạ thì báo kèm danh sách loại xe hợp lệ")
     void unknownBusTypeListsAllowedValues() {
         TripRequest request = new TripRequest(route.getId(), company.getId(), "BUS_88",
@@ -448,8 +460,8 @@ class TripBookingFlowTest {
 
     private TripRequest tripRequest(BusType busType) {
         return new TripRequest(route.getId(), company.getId(), busType.name(),
-                LocalDateTime.of(2026, 10, 5, 6, 0),
-                LocalDateTime.of(2026, 10, 5, 12, 0),
+                FUTURE,
+                FUTURE.plusHours(6),
                 new BigDecimal("250000"), null);
     }
 }

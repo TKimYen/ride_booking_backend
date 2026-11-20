@@ -1,6 +1,7 @@
 package com.ridebooking.auth.controller;
 
 import com.ridebooking.auth.dto.CreateUserRequest;
+import com.ridebooking.auth.dto.AdminUserResponse;
 import com.ridebooking.auth.dto.UserResponse;
 import com.ridebooking.auth.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Nhóm Admin - quản lý tài khoản. Yêu cầu role ADMIN (chặn ở SecurityConfig).
  */
 @RestController
-@RequestMapping("/api/admin/users")
+@RequestMapping({"/api/admin/users", "/api/auth/admin/users"})
 @Tag(name = "2. Admin - Người dùng", description = "Quản lý tài khoản, chỉ ADMIN được gọi")
 @SecurityRequirement(name = "bearerAuth")
 public class AdminUserController {
@@ -35,12 +36,12 @@ public class AdminUserController {
     }
 
     @Operation(summary = "Danh sách tài khoản",
-            description = "Không phân trang. Muốn có phân trang dùng `GET /api/admin/users` của user-service.")
+            description = "Nguồn tài khoản ở auth_db, ghép hồ sơ user-service và trạng thái đăng nhập.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Thành công"),
             @ApiResponse(responseCode = "403", description = "Không đủ quyền ADMIN")})
     @GetMapping
-    public ResponseEntity<List<UserResponse>> list() {
+    public ResponseEntity<List<AdminUserResponse>> list() {
         return ResponseEntity.ok(authService.listUsers());
     }
 

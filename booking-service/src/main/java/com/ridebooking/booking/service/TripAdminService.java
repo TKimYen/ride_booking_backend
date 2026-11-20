@@ -60,6 +60,7 @@ public class TripAdminService {
     public TripResponse create(TripRequest request) {
         BusType busType = parseBusType(request.busType());
         requireArrivalAfterDeparture(request.departureTime(), request.arrivalTime());
+        requireDepartureInFuture(request.departureTime());
 
         Trip trip = new Trip();
         trip.setRoute(requireRoute(request.routeId()));
@@ -92,6 +93,9 @@ public class TripAdminService {
         if (status != trip.getStatus()) {
             throw new ConflictException("Không đổi trạng thái chuyến bằng API sửa, hãy dùng "
                     + "/api/admin/trips/{id}/cancel hoặc /api/admin/trips/{id}/complete");
+        }
+        if (status == TripStatus.ACTIVE) {
+            requireDepartureInFuture(request.departureTime());
         }
 
         // ĐỔI LOẠI XE SAU KHI ĐÃ CÓ KHÁCH là việc nguy hiểm: sơ đồ ghế cũ không
@@ -208,6 +212,12 @@ public class TripAdminService {
     static void requireArrivalAfterDeparture(LocalDateTime departure, LocalDateTime arrival) {
         if (!arrival.isAfter(departure)) {
             throw new IllegalArgumentException("Giờ đến phải sau giờ khởi hành");
+        }
+    }
+
+    static void requireDepartureInFuture(LocalDateTime departure) {
+        if (!departure.isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Giờ khởi hành phải sau thời điểm hiện tại");
         }
     }
 }

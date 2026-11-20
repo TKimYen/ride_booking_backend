@@ -31,10 +31,9 @@ public class EmailProperties {
     /**
      * Bắt buộc email đã xác minh mới được đăng nhập hay không.
      *
-     * <p>Mặc định {@code false}: tài khoản dùng ngay sau khi đăng ký, phù hợp khi
-     * đang dùng mailpit ở local. Bật {@code true} ở production.
+     * <p>Mặc định {@code true}: tài khoản phải xác minh email trước khi đăng nhập.
      */
-    private boolean requireVerifiedForLogin = false;
+    private boolean requireVerifiedForLogin = true;
 
     /** Hạn link xác minh email (phút). Mặc định 1 ngày. */
     private long verifyTtlMinutes = 1440;

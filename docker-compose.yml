@@ -15,6 +15,8 @@ name: ride-booking
 
 x-common-env: &common-env
   EUREKA_URL: http://discovery-server:8761/eureka
+  APP_TIME_ZONE: ${APP_TIME_ZONE:-Asia/Ho_Chi_Minh}
+  JAVA_TOOL_OPTIONS: -Duser.timezone=${APP_TIME_ZONE:-Asia/Ho_Chi_Minh}
   # Cả hai service phải dùng cùng secret để user-service đọc được token của auth-service
   JWT_SECRET: ${JWT_SECRET:-ride-booking-microservices-dev-secret-key-change-me-0123456789}
   # Khoá gọi API nội bộ giữa các service
@@ -34,6 +36,7 @@ services:
       POSTGRES_DB: auth_db
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    command: ["postgres", "-c", "timezone=${APP_TIME_ZONE:-Asia/Ho_Chi_Minh}"]
     ports:
       # Map sang cổng khác 5432 để không đụng PostgreSQL cài trên máy
       - "127.0.0.1:${AUTH_DB_PORT:-5433}:5432"
@@ -69,6 +72,7 @@ services:
       POSTGRES_DB: user_db
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    command: ["postgres", "-c", "timezone=${APP_TIME_ZONE:-Asia/Ho_Chi_Minh}"]
     ports:
       - "127.0.0.1:${USER_DB_PORT:-5434}:5432"
     volumes:
@@ -92,6 +96,7 @@ services:
       POSTGRES_DB: booking_db
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    command: ["postgres", "-c", "timezone=${APP_TIME_ZONE:-Asia/Ho_Chi_Minh}"]
     ports:
       - "127.0.0.1:${BOOKING_DB_PORT:-5435}:5432"
     volumes:
@@ -138,7 +143,7 @@ services:
     environment:
       <<: *common-env
       SERVER_PORT: 8081
-      DB_HOST: auth-db
+      DB_HOST: ${AUTH_DB_HOST:-ride-booking-auth-db}
       DB_PORT: 5432
       DB_NAME: auth_db
       DB_USER: ${DB_USER:-postgres}
@@ -175,7 +180,7 @@ services:
       #   MAIL_HOST=smtp.gmail.com  MAIL_PORT=587
       #   MAIL_USERNAME=<tài khoản>  MAIL_PASSWORD=<app password>
       #   MAIL_STARTTLS=true
-      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_HOST: ${MAIL_HOST:-ride-booking-mailpit}
       MAIL_PORT: ${MAIL_PORT:-1025}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
@@ -184,7 +189,7 @@ services:
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Ride Booking}
       # Địa chỉ này nhận cảnh báo bảo mật (đổi email, phát hiện đăng nhập lạ)
       MAIL_SECURITY_TO: ${MAIL_SECURITY_TO:-}
-      EMAIL_VERIFY_REQUIRED_FOR_LOGIN: ${EMAIL_VERIFY_REQUIRED_FOR_LOGIN:-false}
+      EMAIL_VERIFY_REQUIRED_FOR_LOGIN: ${EMAIL_VERIFY_REQUIRED_FOR_LOGIN:-true}
       EMAIL_VERIFY_TTL_MINUTES: ${EMAIL_VERIFY_TTL_MINUTES:-1440}
       PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
       EMAIL_CHANGE_TTL_MINUTES: ${EMAIL_CHANGE_TTL_MINUTES:-60}
@@ -227,7 +232,7 @@ services:
     environment:
       <<: *common-env
       SERVER_PORT: 8082
-      DB_HOST: user-db
+      DB_HOST: ${USER_DB_HOST:-ride-booking-user-db}
       DB_PORT: 5432
       DB_NAME: user_db
       DB_USER: ${DB_USER:-postgres}
@@ -262,13 +267,13 @@ services:
     environment:
       <<: *common-env
       SERVER_PORT: 8083
-      DB_HOST: booking-db
+      DB_HOST: ${BOOKING_DB_HOST:-ride-booking-booking-db}
       DB_PORT: 5432
       DB_NAME: booking_db
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       SEED_ENABLED: ${SEED_ENABLED:-false}
-      SEED_TRIP_DAYS: ${SEED_TRIP_DAYS:-5}
+      SEED_TRIP_DAYS: ${SEED_TRIP_DAYS:-14}
       # Bù chuyến mẫu hằng ngày. Chỉ dev/staging; production để false.
       SEED_TRIP_TOPUP: ${SEED_TRIP_TOPUP:-false}
       # Hiển thị tên/email người đặt vé (booking_db không join được auth_db).
@@ -276,7 +281,7 @@ services:
       # Thời gian giữ ghế, dùng cho cả đồng hồ đếm ngược 10 phút ở Trang Chọn
       # chỗ và cho job trả ghế về AVAILABLE.
       SEAT_HOLD_MINUTES: ${SEAT_HOLD_MINUTES:-10}
-      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_HOST: ${MAIL_HOST:-ride-booking-mailpit}
       MAIL_PORT: ${MAIL_PORT:-1025}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
@@ -323,8 +328,8 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_CURRENCY: ${STRIPE_CURRENCY:-vnd}
-      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:-http://localhost:3000/my-bookings}
-      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:-http://localhost:3000/booking/cancel}
+      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:-http://localhost:5173/dat-ve/ket-qua}
+      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:-http://localhost:5173/dat-ve/ket-qua?status=cancelled}
     depends_on:
       discovery-server:
         condition: service_started

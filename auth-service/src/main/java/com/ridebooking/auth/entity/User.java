@@ -53,10 +53,8 @@ public class User {
     /**
      * Email đã được xác minh qua link gửi vào hộp thư chưa.
      *
-     * <p>Đăng nhập vẫn cho phép khi chưa xác minh (xem
-     * {@code app.email.require-verified-for-login}); cờ này chủ yếu quyết định
-     * có được dùng tính năng khôi phục mật khẩu hay không — nếu ai đó đăng ký
-     * email của người khác rồi bấm "quên mật khẩu" thì sẽ chiếm được tài khoản.
+     * <p>Đăng nhập bị chặn khi cờ này chưa bật xác minh email ở
+     * {@code app.email.require-verified-for-login}.
      */
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified = false;

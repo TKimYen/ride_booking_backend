@@ -80,15 +80,33 @@ class AdminBootstrapTest {
         verify(userRepository).save(captor.capture());
 
         assertThat(captor.getValue().getRole()).isEqualTo(Role.ADMIN);
+        assertThat(captor.getValue().isEmailVerified()).isTrue();
         // không đụng mật khẩu người dùng đã có
         assertThat(passwordEncoder.matches("matkhau123", captor.getValue().getPassword())).isTrue();
     }
 
     @Test
-    void existingAdmin_isLeftUntouched() {
+    void existingAdminWithUnverifiedEmail_isMarkedVerified() {
         User existing = new User();
         existing.setEmail("admin@ridebooking.local");
         existing.setRole(Role.ADMIN);
+        when(userRepository.findByEmailIgnoreCase("admin@ridebooking.local")).thenReturn(Optional.of(existing));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        build("admin@ridebooking.local", "Admin@12345").run(null);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertThat(captor.getValue().isEmailVerified()).isTrue();
+        assertThat(captor.getValue().getEmailVerifiedAt()).isNotNull();
+    }
+
+    @Test
+    void existingVerifiedAdmin_isLeftUntouched() {
+        User existing = new User();
+        existing.setEmail("admin@ridebooking.local");
+        existing.setRole(Role.ADMIN);
+        existing.setEmailVerified(true);
         when(userRepository.findByEmailIgnoreCase("admin@ridebooking.local")).thenReturn(Optional.of(existing));
 
         build("admin@ridebooking.local", "Admin@12345").run(null);

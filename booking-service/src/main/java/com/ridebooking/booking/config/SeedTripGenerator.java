@@ -103,14 +103,14 @@ public class SeedTripGenerator {
                 continue; // tuyến admin tạo thiếu dữ liệu thì không đoán giờ đến / giá
             }
             for (LocalDate day = firstDay; day.isBefore(firstDay.plusDays(days)); day = day.plusDays(1)) {
-                if (tripRepository.existsByRouteIdAndDepartureTimeBetween(
-                        route.getId(), day.atStartOfDay(), day.atTime(LocalTime.MAX))) {
-                    continue;
-                }
                 for (int slot = 0; slot < SLOTS_PER_DAY; slot++) {
                     // Chỉ số cố định theo (tuyến, ngày, khung giờ): bù lại ngày nào cũng ra
                     // cùng nhà xe và loại xe, không phụ thuộc thứ tự chạy.
                     int index = route.getId() * 7 + (int) day.toEpochDay() * SLOTS_PER_DAY + slot;
+                    LocalDateTime departureTime = LocalDateTime.of(day, LocalTime.of(6 + slot * 5, 0));
+                    if (tripRepository.existsAtRouteAndDeparture(route.getId(), departureTime)) {
+                        continue;
+                    }
                     Trip trip = createTrip(route, companies.get(index % companies.size()), day, slot, index);
                     seats += tripSeatRepository.saveAll(seatGenerator.generate(trip)).size();
                     createStopPoints(trip, route);

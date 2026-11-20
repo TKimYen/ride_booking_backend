@@ -43,6 +43,14 @@ public interface TripRepository extends JpaRepository<Trip, Integer>, JpaSpecifi
     boolean existsByRouteIdAndDepartureTimeBetween(Integer routeId, java.time.LocalDateTime from,
                                                    java.time.LocalDateTime to);
 
+    @Query("""
+            SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END
+            FROM Trip t
+            WHERE t.route.id = :routeId AND t.departureTime = :departureTime
+            """)
+    boolean existsAtRouteAndDeparture(@Param("routeId") Integer routeId,
+                                      @Param("departureTime") LocalDateTime departureTime);
+
     /**
      * Đọc trạng thái mới nhất từ DB, không qua cache của phiên làm việc. Luồng giữ
      * ghế gọi lại sau khi có khoá ghế, để không bán vé của chuyến vừa bị huỷ.
@@ -186,4 +194,18 @@ public interface TripRepository extends JpaRepository<Trip, Integer>, JpaSpecifi
             """)
     long countUpcoming(@Param("status") TripStatus status, @Param("after") LocalDateTime after,
                        @Param("companyId") Integer companyId);
+
+    /** Chuyến ACTIVE trong cửa sổ sắp chạy, dùng cho Dashboard. */
+    @EntityGraph(attributePaths = {"route", "route.origin", "route.destination", "company"})
+    @Query("""
+            SELECT t FROM Trip t
+            WHERE t.status = :status
+              AND t.departureTime >= :from AND t.departureTime <= :to
+              AND (:companyId IS NULL OR t.company.id = :companyId)
+            ORDER BY t.departureTime ASC
+            """)
+    List<Trip> findUpcomingTrips(@Param("status") TripStatus status,
+                                 @Param("from") LocalDateTime from,
+                                 @Param("to") LocalDateTime to,
+                                 @Param("companyId") Integer companyId);
 }

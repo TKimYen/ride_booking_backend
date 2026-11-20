@@ -20,7 +20,8 @@ public class RefreshTokenCleanupJob {
         this.refreshTokenService = refreshTokenService;
     }
 
-    @Scheduled(cron = "${app.jwt.refresh-token-purge-cron:0 0 3 * * *}")
+    @Scheduled(cron = "${app.jwt.refresh-token-purge-cron:0 0 3 * * *}",
+            zone = "${APP_TIME_ZONE:Asia/Ho_Chi_Minh}")
     public void purgeExpired() {
         int deleted = refreshTokenService.purgeExpired();
         if (deleted > 0) {

@@ -31,7 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p>Chạy trên H2 nên không cần Docker. user-service bị mock vì nó là service
  * riêng, đã có test riêng.
  */
-@SpringBootTest
+@SpringBootTest(properties = "app.email.require-verified-for-login=true")
 @AutoConfigureMockMvc
 @DisplayName("Luồng xác thực end-to-end")
 class AuthFlowIntegrationTest {
@@ -67,8 +67,8 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("Đăng ký trả về cả accessToken và refreshToken")
-    void register_returnsBothTokens() throws Exception {
+    @DisplayName("Đăng ký gửi xác minh nhưng không cấp phiên đăng nhập")
+    void register_requiresEmailVerificationBeforeLogin() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of(
@@ -77,14 +77,16 @@ class AuthFlowIntegrationTest {
                                 "password", PASSWORD,
                                 "phone", "0912345678"))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
-                .andExpect(jsonPath("$.tokenType").value("Bearer"))
-                .andExpect(jsonPath("$.expiresIn").value(900))
-                .andExpect(jsonPath("$.refreshExpiresIn").value(604800))
-                .andExpect(jsonPath("$.user.email").value("huy@test.com"))
-                .andExpect(jsonPath("$.user.role").value("USER"))
-                .andExpect(jsonPath("$.user.password").doesNotExist());
+                .andExpect(jsonPath("$.email").value("huy@test.com"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("xác minh email")))
+                .andExpect(jsonPath("$.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.refreshToken").doesNotExist());
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("email", "huy@test.com", "password", PASSWORD))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Email chưa được xác minh")));
     }
 
     @Test
@@ -135,12 +137,11 @@ class AuthFlowIntegrationTest {
         JsonNode third = postRefresh(secondRefresh);
         assertNotSameToken(secondRefresh, third.get("refreshToken").asText());
 
-        // Xoay vòng không làm phình bảng: đăng ký giữ lại token của nó, còn các
-        // token từ đăng nhập/refresh đều bị thu hồi đúng lúc được dùng lại.
+        // Đăng ký không cấp token; chỉ phiên đăng nhập và phiên refresh được lưu.
         Integer userId = login.get("user").get("id").asInt();
         org.assertj.core.api.Assertions.assertThat(
                         refreshTokenRepository.findByUserIdAndRevokedAtIsNull(userId))
-                .hasSize(2);
+                .hasSize(1);
     }
 
     @Test
@@ -163,8 +164,7 @@ class AuthFlowIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Toàn bộ phiên")));
 
-        // Còn phiên của client chính (đăng ký + đăng nhập đều cấp token); sau khi
-        // phát hiện tái sử dụng thì không còn phiên nào còn hiệu lực
+        // Sau khi phát hiện tái sử dụng thì không còn phiên nào còn hiệu lực.
         org.assertj.core.api.Assertions.assertThat(activeBefore).isPositive();
         org.assertj.core.api.Assertions.assertThat(
                         refreshTokenRepository.findByUserIdAndRevokedAtIsNull(userId))
@@ -449,6 +449,10 @@ class AuthFlowIntegrationTest {
                                     "fullName", "Nguyễn Anh Huy", "email", "huy@test.com", "password", PASSWORD))))
                     .andExpect(status().isCreated());
         }
+        userRepository.findByEmailIgnoreCase("huy@test.com").ifPresent(user -> {
+            user.setEmailVerified(true);
+            userRepository.save(user);
+        });
     }
 
     private void failLogin() throws Exception {
@@ -466,6 +470,10 @@ class AuthFlowIntegrationTest {
                                     "fullName", "Nguyễn Anh Huy", "email", email, "password", PASSWORD))))
                     .andExpect(status().isCreated());
         }
+        userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
+            user.setEmailVerified(true);
+            userRepository.save(user);
+        });
 
         String body = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

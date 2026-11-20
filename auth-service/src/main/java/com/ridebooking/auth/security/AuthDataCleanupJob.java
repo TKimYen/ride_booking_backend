@@ -43,7 +43,8 @@ public class AuthDataCleanupJob {
         this.loginSecurityProperties = loginSecurityProperties;
     }
 
-    @Scheduled(cron = "${app.cleanup.cron:0 15 3 * * *}")
+    @Scheduled(cron = "${app.cleanup.cron:0 15 3 * * *}",
+            zone = "${APP_TIME_ZONE:Asia/Ho_Chi_Minh}")
     public void purge() {
         int tokens = emailTokenService.purgeExpired();
         int attempts = loginAttemptService.purgeOlderThan(7);

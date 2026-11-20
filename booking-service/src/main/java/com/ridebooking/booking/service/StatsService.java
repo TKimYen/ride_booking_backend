@@ -4,11 +4,15 @@ import com.ridebooking.booking.dto.stats.DailyRevenueResponse;
 import com.ridebooking.booking.dto.stats.StatsOverviewResponse;
 import com.ridebooking.booking.dto.stats.StatusCountResponse;
 import com.ridebooking.booking.dto.stats.TopRouteResponse;
+import com.ridebooking.booking.dto.stats.UpcomingTripResponse;
 import com.ridebooking.booking.enums.BookingStatus;
 import com.ridebooking.booking.enums.TripStatus;
+import com.ridebooking.booking.enums.SeatStatus;
+import com.ridebooking.booking.entity.Trip;
 import com.ridebooking.booking.exception.BadRequestException;
 import com.ridebooking.booking.repository.BookingRepository;
 import com.ridebooking.booking.repository.TripRepository;
+import com.ridebooking.booking.repository.TripSeatRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,6 +23,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,10 +50,13 @@ public class StatsService {
 
     private final BookingRepository bookingRepository;
     private final TripRepository tripRepository;
+    private final TripSeatRepository tripSeatRepository;
 
-    public StatsService(BookingRepository bookingRepository, TripRepository tripRepository) {
+    public StatsService(BookingRepository bookingRepository, TripRepository tripRepository,
+                        TripSeatRepository tripSeatRepository) {
         this.bookingRepository = bookingRepository;
         this.tripRepository = tripRepository;
+        this.tripSeatRepository = tripSeatRepository;
     }
 
     public StatsOverviewResponse overview(LocalDate from, LocalDate to, Integer companyId) {
@@ -125,6 +133,38 @@ public class StatsService {
                         ((Number) row[4]).longValue(),
                         tickets.getOrDefault((Integer) row[0], 0L),
                         (BigDecimal) row[5]))
+                .toList();
+    }
+
+    /** Chuyến ACTIVE khởi hành trong cửa sổ giờ tới, kèm số ghế đã giữ/bán. */
+    public List<UpcomingTripResponse> upcomingTrips(int hours, Integer companyId) {
+        if (hours < 1 || hours > 168) {
+            throw new BadRequestException("hours phải từ 1 đến 168");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime until = now.plusHours(hours);
+        List<Trip> trips = tripRepository.findUpcomingTrips(TripStatus.ACTIVE, now, until, companyId);
+        if (trips.isEmpty()) {
+            return List.of();
+        }
+        List<Integer> tripIds = trips.stream().map(Trip::getId).toList();
+        Map<Integer, Long> totals = tripSeatRepository.countTotalByTripIds(tripIds).stream()
+                .collect(Collectors.toMap(row -> (Integer) row[0], row -> ((Number) row[1]).longValue()));
+        Map<Integer, Long> booked = new HashMap<>();
+        for (Object[] row : tripSeatRepository.countByTripIdsGroupedByStatus(tripIds)) {
+            SeatStatus status = (SeatStatus) row[1];
+            if (status == SeatStatus.HOLDING || status == SeatStatus.BOOKED) {
+                Integer tripId = (Integer) row[0];
+                booked.merge(tripId, ((Number) row[2]).longValue(), Long::sum);
+            }
+        }
+        return trips.stream().map(trip -> new UpcomingTripResponse(
+                        trip.getId(),
+                        trip.getRoute() == null ? null : trip.getRoute().getName(),
+                        trip.getCompany() == null ? null : trip.getCompany().getName(),
+                        trip.getDepartureTime(),
+                        booked.getOrDefault(trip.getId(), 0L),
+                        totals.getOrDefault(trip.getId(), 0L)))
                 .toList();
     }
 

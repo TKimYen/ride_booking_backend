@@ -497,7 +497,9 @@ Xem [mục 10](#thanh-toán-stripe-tuỳ-chọn).
 <summary><b>Không nhận được link xác minh / reset mật khẩu</b></summary>
 
 Local dùng Mailpit — mở http://localhost:8025 và xem trong hộp thư. Không cần
-tài khoản email thật. Muốn gửi thật thì đặt `MAIL_HOST`/`MAIL_PORT`/`MAIL_USERNAME`/
+tài khoản email thật. Đăng ký xong phải bấm link xác minh trong thư rồi mới đăng
+nhập được; nếu thư cũ hết hạn, tại trang đăng nhập bấm **Gửi lại link xác minh
+email**. Muốn gửi thật thì đặt `MAIL_HOST`/`MAIL_PORT`/`MAIL_USERNAME`/
 `MAIL_PASSWORD` trong `.env` (Gmail dùng **App Password**, không dùng mật khẩu
 tài khoản).
 
@@ -534,7 +536,7 @@ Những thứ **an toàn cho local nhưng BẮT BUỘC phải đổi khi deploy*
 
 1. `JWT_SECRET` (≥ 32 ký tự, ngẫu nhiên) và `INTERNAL_API_KEY` — đây là 2 secret duy nhất bảo vệ toàn hệ thống.
 2. `ADMIN_PASSWORD` — không dùng `Admin@12345`.
-3. `MAIL_*` → SMTP thật, và bật `EMAIL_VERIFY_REQUIRED_FOR_LOGIN=true`.
+3. `MAIL_*` → SMTP thật; `EMAIL_VERIFY_REQUIRED_FOR_LOGIN` mặc định là `true`.
 4. Schema: Flyway tự chạy khi khởi động, không cần thao tác. Không bật `SEED_ENABLED`.
 5. `CORS_ALLOWED_ORIGINS` → domain thật (không dùng `*`).
 6. `GATEWAY_TRUSTED_PROXIES` / `AUTH_TRUSTED_PROXY_IPS` → IP của nginx/ALB thật.

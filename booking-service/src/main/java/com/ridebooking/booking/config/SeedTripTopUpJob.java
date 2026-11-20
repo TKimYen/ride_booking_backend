@@ -43,7 +43,8 @@ public class SeedTripTopUpJob implements ApplicationRunner {
         topUp();
     }
 
-    @Scheduled(cron = "${app.seed.trip-topup.cron:0 5 0 * * *}")
+    @Scheduled(cron = "${app.seed.trip-topup.cron:0 5 0 * * *}",
+            zone = "${APP_TIME_ZONE:Asia/Ho_Chi_Minh}")
     public void topUp() {
         SeedTripGenerator.TopUpResult result = generator.topUpAll(LocalDate.now());
         if (result.trips() > 0) {

@@ -97,6 +97,21 @@ class AdminCatalogApiTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
+    @DisplayName("[L2] Từ chối tạo chuyến đã qua giờ khởi hành")
+    void pastDepartureIsRejected() throws Exception {
+        LocalDateTime departure = LocalDateTime.now().minusMinutes(1).withNano(0);
+        String body = """
+                {"routeId": %d, "companyId": %d, "busType": "LIMOUSINE_29",
+                 "departureTime": "%s", "arrivalTime": "%s", "basePrice": 250000}
+                """.formatted(route.getId(), company.getId(), departure, departure.plusHours(6));
+
+        mockMvc.perform(post("/api/admin/trips").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("Giờ khởi hành")));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
     @DisplayName("[L2] Loại xe lạ -> 400, liệt kê loại hợp lệ")
     void unknownBusTypeBecomes400() throws Exception {
         String body = """

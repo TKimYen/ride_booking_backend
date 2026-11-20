@@ -19,11 +19,13 @@ import static org.mockito.ArgumentMatchers.anyString;
 import com.ridebooking.auth.dto.ChangePasswordRequest;
 import com.ridebooking.auth.dto.LoginRequest;
 import com.ridebooking.auth.dto.RegisterRequest;
+import com.ridebooking.auth.dto.RegistrationResponse;
 import com.ridebooking.auth.dto.UserResponse;
 import com.ridebooking.auth.entity.User;
 import com.ridebooking.auth.enums.Role;
 import com.ridebooking.auth.exception.BadCredentialsException;
 import com.ridebooking.auth.exception.EmailAlreadyExistsException;
+import com.ridebooking.auth.exception.EmailNotVerifiedException;
 import com.ridebooking.auth.repository.EmailSendLogRepository;
 import com.ridebooking.auth.repository.EmailTokenRepository;
 import com.ridebooking.auth.repository.LoginAttemptRepository;
@@ -71,6 +73,7 @@ class AuthServiceTest {
     private EmailSendLogRepository emailSendLogRepository;
 
     private PasswordEncoder passwordEncoder;
+    private EmailProperties emailProperties;
     private AuthService authService;
 
     @BeforeEach
@@ -90,7 +93,7 @@ class AuthServiceTest {
                 new LoginAttemptService(loginAttemptRepository, new LoginSecurityProperties(),
                         new LoginAttemptWriter(loginAttemptRepository, new LoginSecurityProperties())));
 
-        EmailProperties emailProperties = new EmailProperties();
+        emailProperties = new EmailProperties();
         // MailService với sender null: mọi lần gửi sẽ thất bại và bị nuốt, đúng như
         // hành vi khi SMTP hỏng — test không cần mock hạ tầng email.
         MailService mailService = new MailService(null, emailSendLogRepository, emailProperties,
@@ -111,8 +114,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_newEmail_savesUserWithHashedPasswordAndReturnsToken() {
-        stubRefreshTokenPersistence();
+    void register_newEmail_savesUserAndRequiresEmailVerification() {
         when(userRepository.existsByEmailIgnoreCase("huy@test.com")).thenReturn(false);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User saved = invocation.getArgument(0);
@@ -125,7 +127,7 @@ class AuthServiceTest {
                 " Nguyễn Anh Huy ", " Huy@Test.com ", "matkhau123", "0912345678",
                 LocalDate.of(2002, 5, 20), "Nam");
 
-        var response = authService.register(request, null, null);
+        RegistrationResponse response = authService.register(request, null);
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
@@ -137,17 +139,15 @@ class AuthServiceTest {
         assertThat(passwordEncoder.matches("matkhau123", saved.getPassword())).isTrue();
         assertThat(saved.getRole()).isEqualTo(Role.USER);
 
-        assertThat(response.accessToken()).isNotBlank();
-        assertThat(response.tokenType()).isEqualTo("Bearer");
-        assertThat(response.user().email()).isEqualTo("huy@test.com");
+        assertThat(response.email()).isEqualTo("huy@test.com");
+        assertThat(response.message()).contains("xác minh email");
 
         // DB đã tách nên hồ sơ phải được đẩy sang user-service
         verify(userServiceClient).createProfile(any());
     }
 
     @Test
-    void register_userServiceUnavailable_stillReturnsTokenAndLeavesProfileForLazyCreate() {
-        stubRefreshTokenPersistence();
+    void register_userServiceUnavailable_stillCreatesAccountAndLeavesProfileForLazyCreate() {
         when(userRepository.existsByEmailIgnoreCase("huy@test.com")).thenReturn(false);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User saved = invocation.getArgument(0);
@@ -156,14 +156,10 @@ class AuthServiceTest {
             return saved;
         });
         when(userServiceClient.createProfile(any())).thenReturn(null);
-        when(userServiceClient.fetchProfile(1)).thenReturn(null);
+        RegistrationResponse response = authService.register(new RegisterRequest(
+                "Nguyễn Anh Huy", "huy@test.com", "matkhau123", null, null, null), null);
 
-        var response = authService.register(new RegisterRequest(
-                "Nguyễn Anh Huy", "huy@test.com", "matkhau123", null, null, null), null, null);
-
-        assertThat(response.accessToken()).isNotBlank();
-        assertThat(response.user().fullName()).isEqualTo("Nguyễn Anh Huy");
-        assertThat(response.user().phone()).isNull();
+        assertThat(response.email()).isEqualTo("huy@test.com");
     }
 
     @Test
@@ -173,7 +169,7 @@ class AuthServiceTest {
         RegisterRequest request = new RegisterRequest(
                 "Huy", "huy@test.com", "matkhau123", null, null, null);
 
-        assertThatThrownBy(() -> authService.register(request, null, null))
+        assertThatThrownBy(() -> authService.register(request, null))
                 .isInstanceOf(EmailAlreadyExistsException.class);
 
         verify(userRepository, never()).save(any(User.class));
@@ -188,6 +184,18 @@ class AuthServiceTest {
 
         assertThat(response.accessToken()).isNotBlank();
         assertThat(response.user().id()).isEqualTo(1);
+    }
+
+    @Test
+    void login_unverifiedEmail_whenVerificationIsRequired_isRejected() {
+        emailProperties.setRequireVerifiedForLogin(true);
+        User user = buildUser("matkhau123");
+        user.setEmailVerified(false);
+        when(userRepository.findByEmailIgnoreCase("huy@test.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("huy@test.com", "matkhau123"), null, null))
+                .isInstanceOf(EmailNotVerifiedException.class)
+                .hasMessageContaining("Email chưa được xác minh");
     }
 
     @Test
@@ -295,6 +303,7 @@ class AuthServiceTest {
         user.setEmail("huy@test.com");
         user.setPassword(passwordEncoder.encode(rawPassword));
         user.setRole(Role.USER);
+        user.setEmailVerified(true);
         user.setCreatedAt(LocalDateTime.now());
         return user;
     }

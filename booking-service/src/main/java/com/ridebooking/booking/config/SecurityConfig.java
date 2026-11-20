@@ -66,6 +66,7 @@ public class SecurityConfig {
             "/api/seats/**",
             "/api/stop-points/**",
             "/api/promotions/**",
+            "/api/amenities/**",
             "/api/reviews/**");
 
     /** Request vào một đơn cụ thể có kèm header token khách vãng lai. */

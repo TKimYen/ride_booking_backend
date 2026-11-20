@@ -11,6 +11,7 @@ import com.ridebooking.auth.dto.ForgotPasswordRequest;
 import com.ridebooking.auth.dto.LoginRequest;
 import com.ridebooking.auth.dto.RefreshTokenRequest;
 import com.ridebooking.auth.dto.RegisterRequest;
+import com.ridebooking.auth.dto.RegistrationResponse;
 import com.ridebooking.auth.dto.ResetPasswordRequest;
 import com.ridebooking.auth.dto.UserResponse;
 import com.ridebooking.auth.security.AuthenticatedUser;
@@ -64,18 +65,18 @@ public class AuthController {
             description = """
                     Khách tự tạo tài khoản, role luôn là `USER`.
                     Họ tên / SĐT / ngày sinh / giới tính được chuyển sang user-service tạo hồ sơ.
-                    Trả về cả accessToken và refreshToken.
+                    Gửi email xác minh; cần xác minh trước khi đăng nhập.
                     """)
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Đăng ký thành công, kèm cặp token"),
+            @ApiResponse(responseCode = "201", description = "Đăng ký thành công, đã gửi link xác minh"),
             @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ (thiếu trường, sai định dạng, mật khẩu yếu)",
                     content = @Content(schema = @Schema(implementation = Object.class))),
             @ApiResponse(responseCode = "409", description = "Email đã tồn tại")})
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request,
-                                                HttpServletRequest httpRequest) {
+    public ResponseEntity<RegistrationResponse> register(@Valid @RequestBody RegisterRequest request,
+                                                         HttpServletRequest httpRequest) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(authService.register(request, httpRequest.getHeader("User-Agent"), clientIp(httpRequest)));
+                .body(authService.register(request, clientIp(httpRequest)));
     }
 
     @Operation(
